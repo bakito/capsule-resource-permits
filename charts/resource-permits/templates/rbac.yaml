@@ -1,0 +1,60 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-manager
+rules:
+  - apiGroups: [addons.projectcapsule.dev]
+    resources: [resourcepermits, resourcepermits/status, resourcepermittemplates, resourcepermittemplates/status, globalresourcepermittemplates, globalresourcepermittemplates/status]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [capsule.clastix.io]
+    resources: [tenants, capsuleconfigurations, tenantresources, globaltenantresources]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [namespaces, serviceaccounts, secrets]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch, update]
+  - apiGroups: [events.k8s.io]
+    resources: [events]
+    verbs: [create, patch, update]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch]
+  - apiGroups: [""]
+    resources: [users, groups, serviceaccounts]
+    verbs: [impersonate]
+  {{- with .Values.rbac.extraRules }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-manager
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name | default .Release.Name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.rbac.requester.create }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-requester
+  labels:
+    {{- toYaml .Values.rbac.requester.labels | nindent 4 }}
+rules:
+  - apiGroups: [addons.projectcapsule.dev]
+    resources: [resourcepermits, resourcepermits/status]
+    verbs: [get, list, watch, create, update, patch, delete]
+{{- end }}

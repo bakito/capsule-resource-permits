@@ -1,0 +1,34 @@
+replicaCount: 1
+image:
+  repository: ghcr.io/projectcapsule/resource-permits
+  tag: dev
+  pullPolicy: IfNotPresent
+# By default reuse Capsule's privileged controller identity in its namespace.
+# A dedicated identity must be authorized as a Capsule administrator and given
+# the permissions required by the templates it executes.
+serviceAccount:
+  create: false
+  name: capsule
+manager:
+  capsuleConfiguration: default
+  workers: 1
+  kubeApiQPS: 50
+  kubeApiBurst: 100
+resources: {}
+nodeSelector: {}
+tolerations: []
+rbac:
+  create: true
+  requester:
+    create: true
+    labels: {}
+    # Opt in to aggregation into tenant-owner roles, for example:
+    # rbac.authorization.k8s.io/aggregate-to-admin: "true"
+  extraRules: []
+tls:
+  existingSecret: ""
+  caBundle: ""
+webhooks:
+  failurePolicy: Fail
+  referencesFailurePolicy: Ignore
+  timeoutSeconds: 10

@@ -1,0 +1,27 @@
+version: 2
+project_name: resource-permits
+builds:
+  - id: controller
+    main: ./cmd/controller
+    binary: resource-permits
+    env: [CGO_ENABLED=0]
+    ldflags: &version
+      - -X github.com/projectcapsule/resource-permits/internal/version.GitTag={{ .Tag }} -X github.com/projectcapsule/resource-permits/internal/version.GitCommit={{ .Commit }} -X github.com/projectcapsule/resource-permits/internal/version.GitDirty=
+    goos: [linux]
+    goarch: [amd64, arm64]
+  - id: cli
+    main: ./cmd/cli
+    binary: kubectl-resource_permits
+    env: [CGO_ENABLED=0]
+    ldflags: *version
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+archives:
+  - id: controller
+    ids: [controller]
+    name_template: 'resource-permits_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+  - id: cli
+    ids: [cli]
+    name_template: 'kubectl-resource_permits_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+checksum:
+  name_template: checksums.txt

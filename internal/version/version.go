@@ -1,0 +1,19 @@
+// Copyright 2020-2026 Project Capsule Authors
+// SPDX-License-Identifier: Apache-2.0
+
+package version
+
+// GitRepo ...
+var GitRepo = ""
+
+// GitTag ...
+var GitTag = "dev"
+
+// GitCommit ...
+var GitCommit = ""
+
+// GitDirty ...
+var GitDirty = "dirty"
+
+// BuildTime ...
+var BuildTime = ""

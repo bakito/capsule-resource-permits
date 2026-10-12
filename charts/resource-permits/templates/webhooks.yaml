@@ -1,0 +1,110 @@
+{{- $service := printf "%s-webhook" .Release.Name }}
+{{- $caBundle := .Values.tls.caBundle }}
+{{- if not .Values.tls.existingSecret }}
+{{- $secretName := printf "%s-webhook-tls" .Release.Name }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName }}
+{{- $data := dict }}
+{{- if $existing }}
+{{- $data = $existing.data }}
+{{- else }}
+{{- $ca := genCA (printf "%s-ca" .Release.Name) 365 }}
+{{- $cert := genSignedCert $service nil (list $service (printf "%s.%s.svc" $service .Release.Namespace) (printf "%s.%s.svc.cluster.local" $service .Release.Namespace)) 365 $ca }}
+{{- $data = dict "ca.crt" ($ca.Cert | b64enc) "tls.crt" ($cert.Cert | b64enc) "tls.key" ($cert.Key | b64enc) }}
+{{- end }}
+{{- $caBundle = index $data "ca.crt" }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  namespace: {{ .Release.Namespace }}
+type: kubernetes.io/tls
+data:
+  {{- toYaml $data | nindent 2 }}
+---
+{{- else }}
+{{- $caBundle = required "tls.caBundle is required with tls.existingSecret" $caBundle }}
+{{- end }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ .Release.Name }}-mutating
+webhooks:
+  - name: resourcepermits.mutating.addons.projectcapsule.dev
+    admissionReviewVersions: [v1]
+    sideEffects: None
+    failurePolicy: {{ .Values.webhooks.failurePolicy }}
+    timeoutSeconds: {{ .Values.webhooks.timeoutSeconds }}
+    clientConfig:
+      caBundle: {{ $caBundle }}
+      service:
+        name: {{ $service }}
+        namespace: {{ .Release.Namespace }}
+        path: /resourcepermits/mutating
+    rules:
+      - apiGroups: [addons.projectcapsule.dev]
+        apiVersions: [v1beta2]
+        operations: [CREATE, UPDATE]
+        resources: [resourcepermits, resourcepermits/status]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ .Release.Name }}-validating
+webhooks:
+{{- range $entry := list (dict "resource" "resourcepermits" "operations" (list "CREATE" "UPDATE" "DELETE") "resources" (list "resourcepermits" "resourcepermits/status")) (dict "resource" "resourcepermittemplates" "operations" (list "CREATE" "UPDATE" "DELETE") "resources" (list "resourcepermittemplates")) (dict "resource" "globalresourcepermittemplates" "operations" (list "CREATE" "UPDATE" "DELETE") "resources" (list "globalresourcepermittemplates")) }}
+  - name: {{ $entry.resource }}.validating.addons.projectcapsule.dev
+    admissionReviewVersions: [v1]
+    sideEffects: None
+    failurePolicy: {{ $.Values.webhooks.failurePolicy }}
+    timeoutSeconds: {{ $.Values.webhooks.timeoutSeconds }}
+    clientConfig:
+      caBundle: {{ $caBundle }}
+      service:
+        name: {{ $service }}
+        namespace: {{ $.Release.Namespace }}
+        path: /{{ $entry.resource }}/validating
+    rules:
+      - apiGroups: [addons.projectcapsule.dev]
+        apiVersions: [v1beta2]
+        operations: {{ toJson $entry.operations }}
+        resources: {{ toJson $entry.resources }}
+{{- end }}
+  - name: protection.validating.addons.projectcapsule.dev
+    admissionReviewVersions: [v1]
+    sideEffects: None
+    failurePolicy: {{ .Values.webhooks.failurePolicy }}
+    timeoutSeconds: {{ .Values.webhooks.timeoutSeconds }}
+    clientConfig:
+      caBundle: {{ $caBundle }}
+      service:
+        name: {{ $service }}
+        namespace: {{ .Release.Namespace }}
+        path: /generic/resourcepermit
+    matchConditions:
+      - name: resource-permit-protection
+        expression: >-
+          [object, oldObject].exists(o, o != null && has(o.metadata.labels) && (
+            ('projectcapsule.dev/protected-by' in o.metadata.labels && o.metadata.labels['projectcapsule.dev/protected-by'] == 'resource-permit') ||
+            ('protection.projectcapsule.dev/resource-permit' in o.metadata.labels && o.metadata.labels['protection.projectcapsule.dev/resource-permit'] == 'true')
+          ))
+    rules:
+      - apiGroups: ['*']
+        apiVersions: ['*']
+        operations: [CREATE, UPDATE, DELETE]
+        resources: ['*']
+  - name: serviceaccounts.references.addons.projectcapsule.dev
+    admissionReviewVersions: [v1]
+    sideEffects: None
+    failurePolicy: {{ .Values.webhooks.referencesFailurePolicy }}
+    timeoutSeconds: {{ .Values.webhooks.timeoutSeconds }}
+    clientConfig:
+      caBundle: {{ $caBundle }}
+      service:
+        name: {{ $service }}
+        namespace: {{ .Release.Namespace }}
+        path: /serviceaccounts/references
+    rules:
+      - apiGroups: ['']
+        apiVersions: [v1]
+        operations: [DELETE]
+        resources: [serviceaccounts]
