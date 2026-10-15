@@ -23,7 +23,7 @@ export function ResourcePermitAuditTimeline({
   scheduledLifecycle?: ResourcePermitScheduledLifecycle;
 }) {
   if (entries.length === 0 && !scheduledLifecycle) {
-    return <Typography color="text.secondary">No audit entries reported.</Typography>;
+    return <Typography sx={{ color: 'text.secondary' }}>No audit entries reported.</Typography>;
   }
 
   const scheduledStage = scheduledLifecycle?.stage;
@@ -100,8 +100,8 @@ export function ResourcePermitAuditTimeline({
                 p: 1.75,
               }}
             >
-              <Stack gap={1}>
-                <Stack direction="row" gap={0.75} flexWrap="wrap" alignItems="center">
+              <Stack sx={{ gap: 1 }}>
+                <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
                   <Chip
                     size="small"
                     label={entry.stage}
@@ -146,13 +146,17 @@ export function ResourcePermitAuditTimeline({
                   })}
                 >
                   <Icon icon="mdi:calendar-clock" width={18} height={18} />
-                  <Typography variant="body2" fontWeight={700}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
                     Timestamp: {dateTime(entry.timestamp)}
                   </Typography>
                 </Box>
               </Stack>
               <Typography sx={{ mt: 1 }}>{entry.message}</Typography>
-              <Typography component="div" variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+              <Typography
+                component="div"
+                variant="body2"
+                sx={{ color: 'text.secondary', mt: 0.75 }}
+              >
                 Actor:{' '}
                 {subject ? (
                   <CapsuleSubjectLink
@@ -166,7 +170,7 @@ export function ResourcePermitAuditTimeline({
                 )}
               </Typography>
               {entry.eventTime && (
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5 }}>
                   Kubernetes event recorded: {dateTime(entry.eventTime)}
                 </Typography>
               )}
@@ -198,9 +202,9 @@ export function ResourcePermitAuditTimeline({
             }}
           />
           <Box
-            alignItems="center"
             data-testid="future-lifecycle-marker"
             sx={{
+              alignItems: 'center',
               display: 'grid',
               gridColumn: '1 / -1',
               gridTemplateColumns: '42px minmax(0, 1fr)',
@@ -275,16 +279,12 @@ export function ResourcePermitAuditTimeline({
               p: 1.75,
             }}
           >
-            <Stack gap={1}>
-              <Stack direction="row" gap={0.75} flexWrap="wrap" alignItems="center">
+            <Stack sx={{ gap: 1 }}>
+              <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
                 <Chip
                   label={scheduledStage}
                   size="small"
-                  sx={{
-                    bgcolor: scheduledStyle.color,
-                    color: scheduledTextColor,
-                    fontWeight: 700,
-                  }}
+                  sx={{ bgcolor: scheduledStyle.color, color: scheduledTextColor, fontWeight: 700 }}
                 />
                 <Chip
                   label={
@@ -314,7 +314,7 @@ export function ResourcePermitAuditTimeline({
                 })}
               >
                 <Icon icon="mdi:calendar-clock" width={18} height={18} />
-                <Typography variant="body2" fontWeight={700}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
                   {scheduledAt
                     ? `${isActivation ? 'Activates at' : 'Scheduled for'}: ${dateTime(scheduledAt)}`
                     : 'Archive date not yet reported'}
@@ -327,7 +327,7 @@ export function ResourcePermitAuditTimeline({
                   ? 'Capsule will activate this ResourcePermit at the approved future start time.'
                   : 'Capsule will archive and delete this ResourcePermit after its audit-retention window.')}
             </Typography>
-            <Typography color="text.secondary" sx={{ mt: 0.75 }} variant="caption">
+            <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.75 }}>
               This is a planned lifecycle marker, not a completed audit transition.
             </Typography>
           </Paper>

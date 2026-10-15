@@ -33,7 +33,7 @@ function decoded(value: string | undefined): string {
 
 function MentionChips({ mentions }: { mentions: string[] }) {
   return (
-    <Stack direction="row" flexWrap="wrap" gap={0.5}>
+    <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
       {mentions.map(mention => (
         <Chip key={mention} size="small" label={mention} variant="outlined" />
       ))}
@@ -119,7 +119,10 @@ export function CapsuleSubjectSummary(props: CapsuleSubjectSummaryProps = {}) {
   return (
     <>
       <SectionBox title={`Subject: ${subjectLabel}`}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} alignItems={{ sm: 'center' }}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          sx={{ gap: 1, alignItems: { sm: 'center' } }}
+        >
           <Chip color="primary" label={subject?.kind || 'Unknown'} />
           <Typography>
             References are correlated from visible Permits and RBAC resources. Namespaced searches
@@ -135,7 +138,7 @@ export function CapsuleSubjectSummary(props: CapsuleSubjectSummaryProps = {}) {
           segments={[{ name: 'Requests', value: requestRows.length, color: '#ed6c02' }]}
           chips={[{ label: `${requestRows.length} Visible`, color: 'warning' }]}
           footer={
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               Requestor, reviewer, access identity, or rendered subject
             </Typography>
           }
@@ -157,7 +160,7 @@ export function CapsuleSubjectSummary(props: CapsuleSubjectSummaryProps = {}) {
       {inventoriesLoading && (
         <Box sx={{ alignItems: 'center', display: 'flex', gap: 1, px: 2, py: 1 }}>
           <CircularProgress size={20} />
-          <Typography color="text.secondary">Loading visible references…</Typography>
+          <Typography sx={{ color: 'text.secondary' }}>Loading visible references…</Typography>
         </Box>
       )}
 

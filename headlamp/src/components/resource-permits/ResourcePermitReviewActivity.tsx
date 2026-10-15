@@ -8,7 +8,10 @@ import {
   CircularProgress,
   FormControl,
   FormControlLabel,
+  FormHelperText,
   FormLabel,
+  InputLabel,
+  OutlinedInput,
   Paper,
   Radio,
   RadioGroup,
@@ -17,7 +20,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
-import { type MouseEvent, useEffect, useMemo, useState } from 'react';
+import { type MouseEvent, useEffect, useId, useMemo, useState } from 'react';
 import { CAPSULE_CRDS } from '../../resources/capsuleCustomResources';
 import { ResourcePermit } from '../../resources/resourcePermits';
 import { AnchoredSectionBox as SectionBox } from '../common/AnchoredSectionBox';
@@ -97,6 +100,7 @@ export function ResourcePermitReviewButton({ item }: { item: any }) {
 }
 
 export function ResourcePermitReview({ cluster, name, namespace }: ResourcePermitReviewProps) {
+  const startTimeInputId = useId();
   const [liveRequest, error] = ResourcePermit.useGet(name, namespace, { cluster });
   const [refreshedRequest, setRefreshedRequest] = useState<ResourcePermit | null>(null);
   const [verdict, setVerdict] = useState<ResourcePermitReviewVerdict | ''>('');
@@ -186,8 +190,8 @@ export function ResourcePermitReview({ cluster, name, namespace }: ResourcePermi
   return (
     <>
       <SectionBox title={`Review: ${namespace}/${name}`}>
-        <Stack gap={1.5}>
-          <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
+        <Stack sx={{ gap: 1.5 }}>
+          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
             <Chip label={resourcePermitPhase(request)} color={reviewable ? 'warning' : 'default'} />
             {templateReference?.name && (
               <CapsuleResourceLink
@@ -260,7 +264,7 @@ export function ResourcePermitReview({ cluster, name, namespace }: ResourcePermi
             review.
           </Alert>
         )}
-        <Stack gap={2}>
+        <Stack sx={{ gap: 2 }}>
           <FormControl disabled={!reviewable || submitting}>
             <FormLabel id={`resource-permit-verdict-${namespace}-${name}`}>Verdict</FormLabel>
             <RadioGroup
@@ -277,20 +281,13 @@ export function ResourcePermitReview({ cluster, name, namespace }: ResourcePermi
               <FormControlLabel control={<Radio />} label="Decline" value="Denied" />
             </RadioGroup>
           </FormControl>
-          <Paper
-            variant="outlined"
-            sx={{
-              bgcolor: 'action.hover',
-              borderColor: 'divider',
-              p: 2,
-            }}
-          >
-            <Stack gap={2}>
+          <Paper variant="outlined" sx={{ bgcolor: 'action.hover', borderColor: 'divider', p: 2 }}>
+            <Stack sx={{ gap: 2 }}>
               <Box>
-                <Typography variant="subtitle1" fontWeight={600}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                   Approval timing
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                   Reviewers may adjust the effective access window before approving. These values
                   are ignored when declining.
                 </Typography>
@@ -304,23 +301,32 @@ export function ResourcePermitReview({ cluster, name, namespace }: ResourcePermi
                 placeholder="For example: 1h"
                 value={duration}
               />
-              <TextField
+              <FormControl
                 disabled={!reviewable || submitting || verdict === 'Denied'}
                 error={startTimeError}
                 fullWidth
-                helperText={
-                  startTimeError
-                    ? 'Choose the effective start time before approving.'
-                    : 'Change when access begins, or keep the prefilled effective value.'
-                }
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ step: 1 }}
-                label="Start time"
-                onChange={event => setStartTime(event.target.value)}
                 required={verdict === 'Approved'}
-                type="datetime-local"
-                value={startTime}
-              />
+                variant="outlined"
+              >
+                <InputLabel htmlFor={startTimeInputId} shrink>
+                  Start time
+                </InputLabel>
+                <OutlinedInput
+                  aria-describedby={`${startTimeInputId}-help`}
+                  id={startTimeInputId}
+                  label="Start time"
+                  notched
+                  onChange={event => setStartTime(event.target.value)}
+                  slotProps={{ input: { step: 1 } }}
+                  type="datetime-local"
+                  value={startTime}
+                />
+                <FormHelperText id={`${startTimeInputId}-help`}>
+                  {startTimeError
+                    ? 'Choose the effective start time before approving.'
+                    : 'Change when access begins, or keep the prefilled effective value.'}
+                </FormHelperText>
+              </FormControl>
             </Stack>
           </Paper>
           <TextField
@@ -354,7 +360,7 @@ export function ResourcePermitReview({ cluster, name, namespace }: ResourcePermi
               ? 'Submit approval'
               : 'Select a verdict'}
           </Button>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
             The browser requests only the lifecycle phase, optional timing overrides, and comment.
             The addon records the authenticated actor, reviewer, verdict, and audit transition.
           </Typography>

@@ -80,8 +80,11 @@ function FeedSection({
   if (count === 0) return null;
   return (
     <Box component="section">
-      <Stack alignItems="center" direction="row" justifyContent="space-between" px={2} py={1}>
-        <Typography color="text.secondary" fontWeight={700} variant="overline">
+      <Stack
+        direction="row"
+        sx={{ alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1 }}
+      >
+        <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700 }}>
           {title}
         </Typography>
         <Chip label={count} size="small" />
@@ -138,7 +141,7 @@ function TransitionItem({
         py: 1.5,
       })}
     >
-      <Stack alignItems="flex-start" direction="row" gap={1.25}>
+      <Stack direction="row" sx={{ alignItems: 'flex-start', gap: 1.25 }}>
         <Box
           sx={theme => ({
             alignItems: 'center',
@@ -155,8 +158,8 @@ function TransitionItem({
         >
           <Icon icon={presentation.icon} height={17} width={17} />
         </Box>
-        <Box minWidth={0} flex={1}>
-          <Stack alignItems="center" direction="row" flexWrap="wrap" gap={0.75}>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.75 }}>
             <Chip
               label={transition.type}
               size="small"
@@ -166,14 +169,17 @@ function TransitionItem({
                 fontWeight: 700,
               })}
             />
-            <Typography color="text.secondary" variant="caption">
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               {transition.reason}
             </Typography>
           </Stack>
           <Typography sx={{ mt: 0.65, overflowWrap: 'anywhere' }} variant="body2">
             {transition.message || transition.reason}
           </Typography>
-          <Stack alignItems="center" direction="row" flexWrap="wrap" gap={0.75} mt={0.75}>
+          <Stack
+            direction="row"
+            sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.75, mt: 0.75 }}
+          >
             <ResourcePermitLink onNavigate={onClose} request={request} />
             {reviewable && (
               <Button
@@ -189,20 +195,18 @@ function TransitionItem({
               </Button>
             )}
             <Typography
-              color="text.secondary"
               component="time"
               dateTime={timestamp || undefined}
               variant="caption"
+              sx={{ color: 'text.secondary' }}
             >
               {displayTimestamp(timestamp)}
             </Typography>
           </Stack>
           <Typography
-            color="text.secondary"
             component="div"
-            display="block"
-            mt={0.4}
             variant="caption"
+            sx={{ color: 'text.secondary', display: 'block', mt: 0.4 }}
           >
             Actor:{' '}
             {actorSubject ? (
@@ -323,28 +327,30 @@ export function CapsuleEventHub() {
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         onClose={close}
         open={open}
-        PaperProps={{
-          sx: {
-            maxHeight: 'min(720px, 82vh)',
-            maxWidth: 440,
-            width: { xs: 'calc(100vw - 16px)', sm: 440 },
+        slotProps={{
+          paper: {
+            sx: {
+              maxHeight: 'min(720px, 82vh)',
+              maxWidth: 440,
+              width: { xs: 'calc(100vw - 16px)', sm: 440 },
+            },
           },
         }}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
       >
         <Box aria-label="EventHub feed">
-          <Box px={2} py={1.5}>
-            <Stack alignItems="center" direction="row" gap={1}>
-              <Box minWidth={0}>
-                <Typography fontWeight={800} variant="h6">
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>
                   EventHub
                 </Typography>
-                <Typography color="text.secondary" noWrap variant="caption">
+                <Typography noWrap variant="caption" sx={{ color: 'text.secondary' }}>
                   {user?.username ? `For ${user.username}` : 'Resolving your Kubernetes identity…'}
                 </Typography>
               </Box>
             </Stack>
-            <Stack direction="row" gap={1} mt={1.5}>
+            <Stack direction="row" sx={{ gap: 1, mt: 1.5 }}>
               <FormControl fullWidth size="small">
                 <InputLabel id="eventhub-timeframe-label">Relative timeframe</InputLabel>
                 <Select
@@ -383,9 +389,12 @@ export function CapsuleEventHub() {
           <Divider />
           <Box sx={{ maxHeight: 'calc(min(720px, 82vh) - 145px)', overflowY: 'auto' }}>
             {loading && (
-              <Stack alignItems="center" direction="row" gap={1} justifyContent="center" py={3}>
+              <Stack
+                direction="row"
+                sx={{ alignItems: 'center', gap: 1, justifyContent: 'center', py: 3 }}
+              >
                 <CircularProgress size={20} />
-                <Typography color="text.secondary" variant="body2">
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                   Loading your ResourcePermits…
                 </Typography>
               </Stack>
@@ -397,10 +406,10 @@ export function CapsuleEventHub() {
               </Alert>
             )}
             {!loading && notificationCount === 0 && !requestError && (
-              <Stack alignItems="center" gap={1} px={3} py={5} textAlign="center">
+              <Stack sx={{ alignItems: 'center', gap: 1, px: 3, py: 5, textAlign: 'center' }}>
                 <Icon icon="mdi:bell-check-outline" height={38} width={38} />
-                <Typography fontWeight={700}>You’re all caught up</Typography>
-                <Typography color="text.secondary" variant="body2">
+                <Typography sx={{ fontWeight: 700 }}>You’re all caught up</Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                   No matching ResourcePermit transitions are visible in this timeframe and scope.
                 </Typography>
               </Stack>

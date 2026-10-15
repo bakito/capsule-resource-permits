@@ -162,7 +162,7 @@ function ResourcePermitTemplateDetailView({
 
         <SectionBox title="Approval Flow">
           <Stack spacing={2}>
-            <Stack direction="row" gap={1} flexWrap="wrap">
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Chip
                 size="small"
                 label={`${approvalMode} approval`}
@@ -199,7 +199,9 @@ function ResourcePermitTemplateDetailView({
                 reflectInURL={false}
               />
             ) : (
-              <Typography color="text.secondary">No CEL approval conditions configured.</Typography>
+              <Typography sx={{ color: 'text.secondary' }}>
+                No CEL approval conditions configured.
+              </Typography>
             )}
           </Stack>
         </SectionBox>
@@ -326,17 +328,22 @@ function ResourcePermitTemplateDetailView({
 
         <SectionBox title="Resource Templates">
           {resources.length === 0 ? (
-            <Typography color="text.secondary">No resource templates configured.</Typography>
+            <Typography sx={{ color: 'text.secondary' }}>
+              No resource templates configured.
+            </Typography>
           ) : (
             <Stack spacing={2}>
               {resources.map((resource: ResourcePermitTemplateResource, resourceIndex: number) => (
                 <Paper key={resourceIndex} variant="outlined" sx={{ overflow: 'hidden' }}>
                   <Stack
                     direction="row"
-                    gap={1}
-                    alignItems="center"
-                    flexWrap="wrap"
-                    sx={{ bgcolor: 'action.hover', p: 1.5 }}
+                    sx={{
+                      gap: 1,
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      bgcolor: 'action.hover',
+                      p: 1.5,
+                    }}
                   >
                     <Typography variant="subtitle2" sx={{ mr: 'auto' }}>
                       Resource group {resourceIndex + 1}
@@ -369,13 +376,12 @@ function ResourcePermitTemplateDetailView({
                       >
                         <Typography
                           variant="caption"
-                          color="text.secondary"
-                          sx={{ px: 2, pt: 1.5, display: 'block' }}
+                          sx={{ color: 'text.secondary', px: 2, pt: 1.5, display: 'block' }}
                         >
                           Direct target {targetIndex + 1}
                         </Typography>
                         {subjects.length > 0 && (
-                          <Stack direction="row" gap={0.5} flexWrap="wrap" sx={{ px: 2, pt: 1 }}>
+                          <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', px: 2, pt: 1 }}>
                             {subjects.map(subject => (
                               <CapsuleSubjectLink
                                 key={`${subject.kind}-${subject.namespace || ''}-${subject.name}`}
@@ -396,8 +402,7 @@ function ResourcePermitTemplateDetailView({
                     >
                       <Typography
                         variant="caption"
-                        color="text.secondary"
-                        sx={{ px: 2, pt: 1.5, display: 'block' }}
+                        sx={{ color: 'text.secondary', px: 2, pt: 1.5, display: 'block' }}
                       >
                         Go template
                       </Typography>

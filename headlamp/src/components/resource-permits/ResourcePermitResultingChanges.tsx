@@ -86,11 +86,13 @@ export function ResourcePermitResultingChanges({
   }, [cluster, targets]);
 
   if (targets.length === 0) {
-    return <Typography color="text.secondary">No rendered targets to compare.</Typography>;
+    return (
+      <Typography sx={{ color: 'text.secondary' }}>No rendered targets to compare.</Typography>
+    );
   }
 
   return (
-    <Stack gap={2}>
+    <Stack sx={{ gap: 2 }}>
       <Alert severity="info">
         The comparison uses only fields present in each rendered manifest, so Kubernetes-generated
         metadata and status are not misrepresented as removals.
@@ -125,13 +127,13 @@ export function ResourcePermitResultingChanges({
                 '& .MuiAccordionSummary-content': { my: 1.25 },
               }}
             >
-              <Stack direction="row" gap={1} alignItems="center" sx={{ width: '100%' }}>
+              <Stack direction="row" sx={{ gap: 1, alignItems: 'center', width: '100%' }}>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography variant="subtitle2">
                     {target.kind}: {target.namespace ? `${target.namespace}/` : ''}
                     {target.name}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     {target.apiVersion}
                   </Typography>
                 </Box>
@@ -150,16 +152,16 @@ export function ResourcePermitResultingChanges({
             </AccordionSummary>
             <AccordionDetails sx={{ borderTop: 1, borderColor: 'divider', p: 0 }}>
               {state.loading ? (
-                <Stack direction="row" gap={1} alignItems="center" sx={{ p: 2 }}>
+                <Stack direction="row" sx={{ gap: 1, alignItems: 'center', p: 2 }}>
                   <CircularProgress size={18} />
-                  <Typography color="text.secondary">Loading current object…</Typography>
+                  <Typography sx={{ color: 'text.secondary' }}>Loading current object…</Typography>
                 </Stack>
               ) : state.error ? (
                 <Alert severity="info" sx={{ m: 2 }}>
                   The live object could not be compared: {state.error}
                 </Alert>
               ) : !hasChanges ? (
-                <Typography color="text.secondary" sx={{ p: 2 }}>
+                <Typography sx={{ color: 'text.secondary', p: 2 }}>
                   The rendered fields already match the live object.
                 </Typography>
               ) : (

@@ -95,9 +95,9 @@ function ResourcePermitRetryDialog({
     >
       <DialogTitle id="resource-permit-retry-title">Retry ResourcePermit?</DialogTitle>
       <DialogContent>
-        <Stack gap={2} sx={{ pt: 0.5 }}>
-          <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
-            <Typography fontWeight={600}>
+        <Stack sx={{ gap: 2, pt: 0.5 }}>
+          <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Typography sx={{ fontWeight: 600 }}>
               {request.namespace}/{request.name}
             </Typography>
             <Chip label={resourcePermitPhase(item)} color="error" size="small" />
@@ -106,7 +106,7 @@ function ResourcePermitRetryDialog({
             Capsule will retry the controller-owned {data.status?.failure?.stage || 'failed'} stage
             and resume from {data.status?.failure?.retryPhase || 'the recorded phase'}.
           </Alert>
-          <Typography id="resource-permit-retry-description" color="text.secondary">
+          <Typography id="resource-permit-retry-description" sx={{ color: 'text.secondary' }}>
             The rendered request snapshot and review remain unchanged. Fix the reported permissions,
             identity, or target problem before retrying.
           </Typography>

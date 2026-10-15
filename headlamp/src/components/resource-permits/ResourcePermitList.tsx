@@ -149,7 +149,7 @@ export function ResourcePermitsList() {
           segments={[{ name: 'Ready for review', value: summary.reviewable, color: '#ed6c02' }]}
           chips={[{ label: `${summary.reviewable} Ready`, color: 'warning' }]}
           footer={
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               Requested or pending with the Ready condition reported
             </Typography>
           }
@@ -160,7 +160,7 @@ export function ResourcePermitsList() {
           segments={[{ name: 'Managed items', value: summary.managedItems, color: '#1976d2' }]}
           chips={[{ label: `${summary.managedItems} Objects`, color: 'primary' }]}
           footer={
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               Status-reported resources across visible requests
             </Typography>
           }

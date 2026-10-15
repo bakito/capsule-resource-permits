@@ -15,7 +15,7 @@ export function ResourcePermitRetention({ request }: { request: any }) {
       variant="outlined"
       sx={{ bgcolor: alpha(style.color, 0.1), borderColor: style.color, borderRadius: 3, p: 2 }}
     >
-      <Stack direction="row" gap={1.5} alignItems="center">
+      <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
         <Box
           sx={{
             alignItems: 'center',
@@ -43,9 +43,11 @@ export function ResourcePermitRetention({ request }: { request: any }) {
         </Box>
         <Box>
           <Typography variant="subtitle2">Archive retention</Typography>
-          <Typography fontWeight={700}>{resourcePermitRetentionMessage(request)}</Typography>
+          <Typography sx={{ fontWeight: 700 }}>
+            {resourcePermitRetentionMessage(request)}
+          </Typography>
           {deadline && (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               Archive date: {new Date(deadline).toLocaleString()}
             </Typography>
           )}

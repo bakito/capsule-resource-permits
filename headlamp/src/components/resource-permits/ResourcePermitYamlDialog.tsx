@@ -66,7 +66,7 @@ export function ResourcePermitYamlDialog({
     <Dialog fullWidth maxWidth="md" onClose={onClose} open={open}>
       <DialogTitle>ResourcePermit YAML</DialogTitle>
       <DialogContent dividers>
-        <Stack gap={2}>
+        <Stack sx={{ gap: 2 }}>
           <Alert severity="info">
             This optional preview contains the values currently entered in the wizard. The
             authenticated requestor is added by the Capsule admission webhook when the request is
@@ -91,7 +91,7 @@ export function ResourcePermitYamlDialog({
           >
             {yaml}
           </Box>
-          <Typography color="text.secondary" variant="caption">
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
             Previewing, copying, or downloading this manifest does not create the ResourcePermit.
           </Typography>
         </Stack>

@@ -74,7 +74,7 @@ function CollapsibleTableSection({
         {children}
       </Collapse>
       {!expanded && (
-        <Typography color="text.secondary" variant="body2">
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
           {count === 0 ? 'No entries.' : `${count} ${count === 1 ? 'entry' : 'entries'} hidden.`}
         </Typography>
       )}
@@ -158,7 +158,7 @@ export function ResourcePermitDetail(props: ResourcePermitDetailProps) {
             value: approvalPolicy?.auto ? (
               'Ignored for automatic approval'
             ) : approvers.length > 0 ? (
-              <Stack direction="row" flexWrap="wrap" gap={0.75}>
+              <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75 }}>
                 {approvers.map((approver, index) => (
                   <CapsuleSubjectLink
                     display="chip"
@@ -177,7 +177,7 @@ export function ResourcePermitDetail(props: ResourcePermitDetailProps) {
             field: 'Approval conditions',
             value:
               approvalConditions.length > 0 ? (
-                <Stack gap={0.5}>
+                <Stack sx={{ gap: 0.5 }}>
                   {approvalConditions.map(condition => (
                     <Typography component="code" key={condition} variant="body2">
                       {condition}
@@ -300,9 +300,9 @@ export function ResourcePermitDetail(props: ResourcePermitDetailProps) {
 
         {request?.status?.failure && (
           <SectionBox title="Failure">
-            <Stack gap={1.5}>
+            <Stack sx={{ gap: 1.5 }}>
               <Alert severity="error">{request.status.failure.message}</Alert>
-              <Stack direction="row" gap={0.75} flexWrap="wrap">
+              <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }}>
                 <Chip
                   color="error"
                   label={`Stage: ${request.status.failure.stage || 'Unknown'}`}
@@ -376,7 +376,7 @@ export function ResourcePermitDetail(props: ResourcePermitDetailProps) {
 
         {reviewRecorded && (
           <SectionBox title="Review Verdict">
-            <Stack gap={2}>
+            <Stack sx={{ gap: 2 }}>
               <Alert
                 severity={
                   reviewVerdict === 'Denied'

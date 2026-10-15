@@ -31,7 +31,7 @@ export function ConditionsAndEvents({ resource }: ConditionsAndEventsProps) {
     >
       <SectionBox title="Conditions">
         {conditions.length === 0 ? (
-          <Typography color="text.secondary">No conditions.</Typography>
+          <Typography sx={{ color: 'text.secondary' }}>No conditions.</Typography>
         ) : (
           <SimpleTable
             columns={[

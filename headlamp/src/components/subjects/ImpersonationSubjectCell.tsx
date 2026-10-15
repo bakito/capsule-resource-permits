@@ -20,7 +20,7 @@ export function ImpersonationSubjectCell({
   reference,
 }: ImpersonationSubjectCellProps) {
   const subject = capsuleSubjectFromServiceAccountReference(reference, fallbackNamespace);
-  if (!subject) return <Typography color="text.secondary">{fallbackLabel}</Typography>;
+  if (!subject) return <Typography sx={{ color: 'text.secondary' }}>{fallbackLabel}</Typography>;
 
   const subjectNamespaces = [subject.namespace, ...namespaces].filter(Boolean) as string[];
   return (

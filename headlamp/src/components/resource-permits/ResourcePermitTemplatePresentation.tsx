@@ -46,16 +46,18 @@ export function ResourcePermitTemplateIdentity({
 }) {
   const description = resourcePermitTemplateDescription(template);
   return (
-    <Stack direction="row" gap={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+    <Stack direction="row" sx={{ gap: 1.25, alignItems: 'center', minWidth: 0 }}>
       <ResourcePermitTemplateIcon template={template} size={compact ? 22 : 30} />
       <Box sx={{ minWidth: 0 }}>
-        <Typography fontWeight={700} noWrap={compact}>
+        <Typography noWrap={compact} sx={{ fontWeight: 700 }}>
           {template?.getName?.() || template?.metadata?.name || template?.jsonData?.metadata?.name}
         </Typography>
         <Typography
-          color="text.secondary"
           variant="body2"
-          sx={
+          sx={[
+            {
+              color: 'text.secondary',
+            },
             compact
               ? {
                   maxWidth: 420,
@@ -63,8 +65,8 @@ export function ResourcePermitTemplateIdentity({
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }
-              : undefined
-          }
+              : false,
+          ]}
         >
           {description || 'No description provided.'}
         </Typography>

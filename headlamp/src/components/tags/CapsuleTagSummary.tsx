@@ -47,7 +47,7 @@ function decoded(value: string | undefined): string {
 
 function StaticTagChips({ tags }: { tags: string[] }) {
   return (
-    <Stack direction="row" flexWrap="wrap" gap={0.5}>
+    <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
       {tags.map(tag => (
         <Chip key={tag} color="primary" label={tag} size="small" variant="outlined" />
       ))}
@@ -121,7 +121,10 @@ export function CapsuleTagSummary(props: CapsuleTagSummaryProps = {}) {
   return (
     <>
       <SectionBox title={`Tag: ${tag || 'Unknown'}`}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} alignItems={{ sm: 'center' }}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          sx={{ gap: 1, alignItems: { sm: 'center' } }}
+        >
           <Chip color="primary" label={tag || 'Unknown'} />
           <Typography>
             Matching visible permit resources are correlated across cluster-scoped APIs and{' '}
@@ -154,7 +157,9 @@ export function CapsuleTagSummary(props: CapsuleTagSummaryProps = {}) {
       {loading && (
         <Box sx={{ alignItems: 'center', display: 'flex', gap: 1, px: 2, py: 1 }}>
           <CircularProgress size={20} />
-          <Typography color="text.secondary">Loading visible permit resources…</Typography>
+          <Typography sx={{ color: 'text.secondary' }}>
+            Loading visible permit resources…
+          </Typography>
         </Box>
       )}
       {unavailable.length > 0 && (

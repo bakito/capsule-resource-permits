@@ -73,7 +73,7 @@ export function GlobalResourcePermitTemplatesList() {
           segments={[{ name: 'Targets', value: summary.targets, color: '#1976d2' }]}
           chips={[{ label: `${summary.targets} Targets`, color: 'primary' }]}
           footer={
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               Direct target groups and manifest templates
             </Typography>
           }

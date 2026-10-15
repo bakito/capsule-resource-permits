@@ -68,13 +68,7 @@ export function StatCard({
   const outerRadius = Math.round(pieSize * 0.46);
 
   const card = (
-    <Card
-      variant="outlined"
-      sx={{
-        width: '100%',
-        ...(fullHeight ? { height: '100%' } : {}),
-      }}
-    >
+    <Card variant="outlined" sx={{ width: '100%', ...(fullHeight ? { height: '100%' } : {}) }}>
       <CardContent
         sx={{
           boxSizing: 'border-box',
@@ -87,9 +81,9 @@ export function StatCard({
         }}
       >
         <Typography
-          color="text.secondary"
           variant="caption"
           sx={{
+            color: 'text.secondary',
             alignItems: 'flex-start',
             display: 'flex',
             justifyContent: 'center',
@@ -130,7 +124,7 @@ export function StatCard({
               </Pie>
             </PieChart>
           ) : (
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               {emptyLabel}
             </Typography>
           )}

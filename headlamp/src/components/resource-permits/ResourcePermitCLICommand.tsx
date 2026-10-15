@@ -73,7 +73,7 @@ export function ResourcePermitCLICommand({
         >
           {command}
         </Box>
-        <Stack direction="row" justifyContent="flex-end">
+        <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
           <Button
             aria-label={`Copy ${action} command`}
             onClick={copy}

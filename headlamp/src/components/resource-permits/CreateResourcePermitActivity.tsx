@@ -11,9 +11,13 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  FormControl,
   FormControlLabel,
+  FormHelperText,
   InputAdornment,
+  InputLabel,
   MenuItem,
+  OutlinedInput,
   Paper,
   Stack,
   Step,
@@ -25,7 +29,7 @@ import {
 import { alpha } from '@mui/material/styles';
 import Form from '@rjsf/mui';
 import { useSnackbar } from 'notistack';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import {
   CAPSULE_CRDS,
@@ -117,6 +121,7 @@ export function ResourcePermitSetupForm({
   templateName: string;
   templateNamespace?: string;
 }) {
+  const startTimeInputId = useId();
   const resourceType: any =
     templateKind === 'ResourcePermitTemplate'
       ? ResourcePermitTemplate
@@ -349,7 +354,7 @@ export function ResourcePermitSetupForm({
 
       {activeStep === 0 ? (
         <SectionBox title="Setup">
-          <Stack gap={3}>
+          <Stack sx={{ gap: 3 }}>
             <Paper
               variant="outlined"
               sx={theme => ({
@@ -359,9 +364,9 @@ export function ResourcePermitSetupForm({
                 p: 2.5,
               })}
             >
-              <Stack gap={2}>
+              <Stack sx={{ gap: 2 }}>
                 <ResourcePermitTemplateIdentity template={template} />
-                <Stack direction="row" gap={1} flexWrap="wrap">
+                <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
                   <Chip label={`${templateApprovalMode(template)} approval`} color="info" />
                   {template.spec?.defaultDuration && (
                     <Chip
@@ -377,8 +382,8 @@ export function ResourcePermitSetupForm({
             </Paper>
 
             <Paper variant="outlined" sx={{ borderWidth: 2, p: { xs: 2, sm: 3 } }}>
-              <Stack gap={2.75}>
-                <Typography fontWeight={700} variant="subtitle1">
+              <Stack sx={{ gap: 2.75 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                   Formal request information
                 </Typography>
                 <TextField
@@ -415,7 +420,7 @@ export function ResourcePermitSetupForm({
                     p: 2,
                   })}
                 >
-                  <Stack gap={1.5}>
+                  <Stack sx={{ gap: 1.5 }}>
                     <FormControlLabel
                       control={
                         <Checkbox
@@ -461,17 +466,27 @@ export function ResourcePermitSetupForm({
                   placeholder="For example: 1h"
                   value={duration}
                 />
-                <TextField
-                  error={Boolean(errors.startTime)}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                  helperText={errors.startTime || 'Optional future activation time.'}
-                  label="Start time"
-                  onChange={event => setStartTime(event.target.value)}
-                  type="datetime-local"
-                  value={startTime}
-                />
-                <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5} justifyContent="flex-end">
+                <FormControl error={Boolean(errors.startTime)} fullWidth variant="outlined">
+                  <InputLabel htmlFor={startTimeInputId} shrink>
+                    Start time
+                  </InputLabel>
+                  <OutlinedInput
+                    aria-describedby={`${startTimeInputId}-help`}
+                    id={startTimeInputId}
+                    label="Start time"
+                    notched
+                    onChange={event => setStartTime(event.target.value)}
+                    type="datetime-local"
+                    value={startTime}
+                  />
+                  <FormHelperText id={`${startTimeInputId}-help`}>
+                    {errors.startTime || 'Optional future activation time.'}
+                  </FormHelperText>
+                </FormControl>
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  sx={{ gap: 1.5, justifyContent: 'flex-end' }}
+                >
                   <Button
                     onClick={() => previewYaml(values)}
                     size="large"
@@ -496,7 +511,7 @@ export function ResourcePermitSetupForm({
         </SectionBox>
       ) : (
         <SectionBox title="Template Parameters">
-          <Stack gap={2.5}>
+          <Stack sx={{ gap: 2.5 }}>
             <Paper
               variant="outlined"
               sx={theme => ({
@@ -530,11 +545,11 @@ export function ResourcePermitSetupForm({
               validator={resourcePermitSchemaValidator}
               widgets={{ [KUBERNETES_RESOURCE_WIDGET]: KubernetesResourceSchemaWidget }}
             >
-              <Stack gap={2.5}>
+              <Stack sx={{ gap: 2.5 }}>
                 {formError && <Alert severity="error">{formError}</Alert>}
                 <Paper variant="outlined" sx={{ borderWidth: 2, p: 2.5 }}>
-                  <Stack gap={2}>
-                    <Stack direction={{ xs: 'column-reverse', sm: 'row' }} gap={1.5}>
+                  <Stack sx={{ gap: 2 }}>
+                    <Stack direction={{ xs: 'column-reverse', sm: 'row' }} sx={{ gap: 1.5 }}>
                       <Button
                         disabled={submitting}
                         onClick={() => setActiveStep(0)}
@@ -569,7 +584,7 @@ export function ResourcePermitSetupForm({
                         Create ResourcePermit
                       </Button>
                     </Stack>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                       The authenticated Kubernetes identity is injected as the requestor by the
                       admission webhook.
                     </Typography>
@@ -596,6 +611,7 @@ export function CreateResourcePermit({
   cluster?: string;
   namespaces: string[];
 }) {
+  const searchInputId = useId();
   const namespaceScope = namespaces.length ? namespaces : undefined;
   const [globalTemplates, globalError] = GlobalResourcePermitTemplate.useList({ cluster });
   const [namespacedTemplates, namespacedError] = ResourcePermitTemplate.useList({
@@ -673,10 +689,10 @@ export function CreateResourcePermit({
             p: { xs: 2, sm: 3 },
           })}
         >
-          <Typography fontWeight={700} variant="subtitle1">
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             Choose an access template
           </Typography>
-          <Typography color="text.secondary" sx={{ mb: 2.5, mt: 0.5 }}>
+          <Typography sx={{ color: 'text.secondary', mb: 2.5, mt: 0.5 }}>
             Filter the catalog, then select the card describing the access you need. Its schema
             supplies the fields on the second step.
           </Typography>
@@ -693,7 +709,7 @@ export function CreateResourcePermit({
               No readable request templates were found in the selected Namespace scope.
             </Alert>
           ) : (
-            <Stack gap={2.5}>
+            <Stack sx={{ gap: 2.5 }}>
               {unavailable.length > 0 && (
                 <Alert severity="info">
                   {unavailable.join(' and ')} could not be listed. Templates returned by the
@@ -714,39 +730,42 @@ export function CreateResourcePermit({
                 )}
                 value={selectedTags}
               />
-              <TextField
-                fullWidth
-                InputProps={{
-                  startAdornment: (
+              <FormControl fullWidth variant="outlined">
+                <InputLabel htmlFor={searchInputId}>Search templates</InputLabel>
+                <OutlinedInput
+                  id={searchInputId}
+                  label="Search templates"
+                  onChange={event => setSearch(event.target.value)}
+                  placeholder="Name, description, or tag"
+                  startAdornment={
                     <InputAdornment position="start">
                       <Icon icon="mdi:magnify" />
                     </InputAdornment>
-                  ),
-                }}
-                label="Search templates"
-                onChange={event => setSearch(event.target.value)}
-                placeholder="Name, description, or tag"
-                value={search}
-              />
+                  }
+                  value={search}
+                />
+              </FormControl>
 
               {templateGroups.length === 0 ? (
                 <Alert severity="info">
                   No templates match the current search and tag filters.
                 </Alert>
               ) : (
-                <Stack gap={3}>
+                <Stack sx={{ gap: 3 }}>
                   {templateGroups.map(group => (
                     <Box key={group.category}>
                       <Stack
-                        alignItems="center"
                         direction="row"
-                        gap={1}
-                        justifyContent="space-between"
-                        sx={{ mb: 1.25 }}
+                        sx={{
+                          alignItems: 'center',
+                          gap: 1,
+                          justifyContent: 'space-between',
+                          mb: 1.25,
+                        }}
                       >
-                        <Stack alignItems="center" direction="row" gap={0.75}>
+                        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
                           <Icon icon="mdi:tag-outline" />
-                          <Typography fontWeight={700} variant="subtitle1">
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                             {group.category}
                           </Typography>
                         </Stack>
@@ -792,9 +811,9 @@ export function CreateResourcePermit({
                                 sx={{ height: '100%' }}
                               >
                                 <CardContent sx={{ height: '100%' }}>
-                                  <Stack gap={1.5} height="100%">
+                                  <Stack sx={{ gap: 1.5, height: '100%' }}>
                                     <ResourcePermitTemplateIdentity template={template} />
-                                    <Stack direction="row" flexWrap="wrap" gap={0.75}>
+                                    <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75 }}>
                                       {tags.map((tag, index) => (
                                         <Chip
                                           key={tag}
@@ -813,11 +832,13 @@ export function CreateResourcePermit({
                                       )}
                                     </Stack>
                                     <Stack
-                                      alignItems="center"
                                       direction="row"
-                                      flexWrap="wrap"
-                                      gap={0.75}
-                                      sx={{ mt: 'auto' }}
+                                      sx={{
+                                        alignItems: 'center',
+                                        flexWrap: 'wrap',
+                                        gap: 0.75,
+                                        mt: 'auto',
+                                      }}
                                     >
                                       <Chip
                                         label={`${templateApprovalMode(template)} approval`}

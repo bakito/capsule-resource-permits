@@ -46,7 +46,7 @@ function ResourceOption({ option }: { option: KubernetesResourceOption }) {
     <Stack sx={{ minWidth: 0 }}>
       <Typography>{option.label}</Typography>
       {option.value !== option.label && (
-        <Typography color="text.secondary" noWrap variant="caption">
+        <Typography noWrap variant="caption" sx={{ color: 'text.secondary' }}>
           {option.value}
         </Typography>
       )}

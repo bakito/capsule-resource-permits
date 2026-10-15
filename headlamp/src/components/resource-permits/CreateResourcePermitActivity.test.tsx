@@ -182,7 +182,24 @@ describe('ResourcePermit setup', () => {
     ).toBeTruthy();
   });
 
-  async function submitGeneratedRequest() {
+  it('filters the catalog through the labelled search input', () => {
+    mocks.globalTemplateList.mockReturnValue([
+      [{ getName: () => 'grafana' }, { getName: () => 'clusterrole-bindings' }],
+      null,
+    ]);
+    render(<CreateResourcePermit cluster="main" namespaces={['solar-test']} />);
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search templates' }), {
+      target: { value: 'grafana' },
+    });
+
+    expect(screen.getByRole('button', { name: 'Select template grafana' })).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: 'Select template clusterrole-bindings' })
+    ).toBeNull();
+  });
+
+  async function submitGeneratedRequest(startTime?: string) {
     render(
       <ResourcePermitSetupForm
         cluster="main"
@@ -199,6 +216,15 @@ describe('ResourcePermit setup', () => {
     fireEvent.change(screen.getByLabelText('ResourcePermit name prefix', { exact: false }), {
       target: { value: 'incident' },
     });
+    if (startTime) {
+      const startTimeInput = screen.getByLabelText('Start time') as HTMLInputElement;
+      expect(startTimeInput.type).toBe('datetime-local');
+      expect(startTimeInput.required).toBe(false);
+      expect(
+        document.getElementById(startTimeInput.getAttribute('aria-describedby') || '')?.textContent
+      ).toBe('Optional future activation time.');
+      fireEvent.change(startTimeInput, { target: { value: startTime } });
+    }
     fireEvent.click(screen.getByRole('button', { name: 'Template Parameters' }));
     const createButton = await screen.findByRole('button', { name: 'Create ResourcePermit' });
     await act(async () => fireEvent.click(createButton));
@@ -226,5 +252,14 @@ describe('ResourcePermit setup', () => {
     expect(await screen.findByText('Request rejected')).toBeTruthy();
     expect(mocks.push).not.toHaveBeenCalled();
     expect(mocks.close).not.toHaveBeenCalled();
+  });
+
+  it('preserves a chosen activation time through the wizard and submits it', async () => {
+    const startTime = '2099-01-02T03:04';
+    mocks.post.mockResolvedValue({ metadata: { name: 'incident-x7j2q', namespace: 'solar-test' } });
+
+    await submitGeneratedRequest(startTime);
+
+    expect(mocks.post.mock.calls[0][1].spec.startTime).toBe(new Date(startTime).toISOString());
   });
 });

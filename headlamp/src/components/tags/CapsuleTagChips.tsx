@@ -68,7 +68,7 @@ export function CapsuleTagChips({
   const location = useLocation();
   const tags = tagsProp || capsuleResourceTags(resource);
   if (tags.length === 0) {
-    return <Typography color="text.secondary">{emptyLabel}</Typography>;
+    return <Typography sx={{ color: 'text.secondary' }}>{emptyLabel}</Typography>;
   }
 
   const currentNamespaces = capsuleTagNamespacesFromSearch(location.search);
@@ -80,7 +80,7 @@ export function CapsuleTagChips({
     : undefined;
 
   return (
-    <Stack direction="row" flexWrap="wrap" gap={0.5}>
+    <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
       {tags.map(tag => {
         const target = capsuleTagHref(tag, requestedNamespaces, location.search);
         return (

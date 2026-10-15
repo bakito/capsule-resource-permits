@@ -97,9 +97,9 @@ function ResourcePermitExpireDialog({
     >
       <DialogTitle id="resource-permit-expire-title">Expire ResourcePermit?</DialogTitle>
       <DialogContent>
-        <Stack gap={2} sx={{ pt: 0.5 }}>
-          <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
-            <Typography fontWeight={600}>
+        <Stack sx={{ gap: 2, pt: 0.5 }}>
+          <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Typography sx={{ fontWeight: 600 }}>
               {request.namespace}/{request.name}
             </Typography>
             <Chip label={resourcePermitPhase(item)} size="small" variant="outlined" />
@@ -108,7 +108,7 @@ function ResourcePermitExpireDialog({
             Expiring this request immediately revokes active access and moves it to a terminal
             lifecycle phase. This action cannot be undone.
           </Alert>
-          <Typography id="resource-permit-expire-description" color="text.secondary">
+          <Typography id="resource-permit-expire-description" sx={{ color: 'text.secondary' }}>
             The request may remain visible until its configured audit-retention period ends.
           </Typography>
           <ResourcePermitCLICommand

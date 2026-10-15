@@ -376,13 +376,12 @@ function SSADiffPanel({
       <Stack
         direction="row"
         spacing={1.5}
-        alignItems="center"
-        sx={{ px: 2, py: 1.5, bgcolor: 'action.hover' }}
+        sx={{ alignItems: 'center', px: 2, py: 1.5, bgcolor: 'action.hover' }}
       >
         <Icon icon="mdi:file-compare" width={24} height={24} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <AnchoredSubheading title="SSA Diff" variant="subtitle1" sx={{ fontWeight: 600 }} />
-          <Typography variant="body2" color="text.secondary" noWrap>
+          <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>
             {kind} · {namespace ? `${namespace}/` : ''}
             {name}
           </Typography>
@@ -414,7 +413,11 @@ function SSADiffPanel({
       <Box sx={{ p: 2 }}>
         {fetchError && <Alert severity="error">Error fetching object: {fetchError}</Alert>}
         {!fetchedObject && !fetchError && (
-          <Stack direction="row" spacing={1.5} alignItems="center" color="text.secondary">
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{ alignItems: 'center', color: 'text.secondary' }}
+          >
             <CircularProgress size={20} />
             <Typography variant="body2">Loading live object and SSA ownership…</Typography>
           </Stack>
@@ -426,14 +429,19 @@ function SSADiffPanel({
         )}
         {lines.length > 0 && (
           <Stack spacing={1.25}>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Stack
+              direction="row"
+              spacing={1}
+              useFlexGap
+              sx={{ alignItems: 'center', flexWrap: 'wrap' }}
+            >
               <Chip size="small" color="success" label="SSA-owned field" />
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                 Highlighted lines are owned by the generator or Capsule resource controller; the
                 remaining lines are the current live-object context.
               </Typography>
               {managedFields.some(field => field.time) && (
-                <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', ml: 'auto' }}>
                   Last changed{' '}
                   {new Date(
                     Math.max(
@@ -557,7 +565,7 @@ export function ManagedResources({
   if ((!applied || applied.length === 0) && dependencies.length === 0) {
     return (
       <SectionBox title={title}>
-        <Typography color="text.secondary">No managed resources reported yet.</Typography>
+        <Typography sx={{ color: 'text.secondary' }}>No managed resources reported yet.</Typography>
       </SectionBox>
     );
   }

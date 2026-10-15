@@ -16,7 +16,7 @@ export function PermitsSettings({ data, onDataChange }: PluginSettingsDetailsPro
           />
         }
       />
-      <Typography color="text.secondary" variant="body2">
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
         Adds links beside section headings. Disabled by default in Headlamp Desktop because Desktop
         uses URL hashes for routing.
       </Typography>

@@ -167,14 +167,14 @@ function DependencyNode({ data }: any) {
     >
       <Icon icon={KIND_ICONS[data.kind] || 'mdi:source-branch'} width={27} height={27} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography variant="caption" color="text.secondary" noWrap display="block">
+        <Typography variant="caption" noWrap sx={{ color: 'text.secondary', display: 'block' }}>
           Depends on · {data.kind}
         </Typography>
         <Typography variant="body2" noWrap sx={{ fontWeight: 650 }}>
           {data.name}
         </Typography>
         {data.namespace && (
-          <Typography variant="caption" color="text.secondary" noWrap display="block">
+          <Typography variant="caption" noWrap sx={{ color: 'text.secondary', display: 'block' }}>
             {data.namespace}
           </Typography>
         )}
@@ -224,14 +224,14 @@ function ManagedObjectNode({ data }: any) {
       />
       <Icon icon={KIND_ICONS[data.kind] || 'mdi:cube-outline'} width={27} height={27} />
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant="caption" color="text.secondary" noWrap>
+        <Typography variant="caption" noWrap sx={{ color: 'text.secondary' }}>
           {data.kind}
         </Typography>
         <Typography variant="body2" noWrap sx={{ fontWeight: 650 }}>
           {data.name}
         </Typography>
         {data.namespace && (
-          <Typography variant="caption" color="text.secondary" noWrap display="block">
+          <Typography variant="caption" noWrap sx={{ color: 'text.secondary', display: 'block' }}>
             {data.namespace}
           </Typography>
         )}
@@ -266,7 +266,7 @@ function NamespaceNode({ data }: any) {
       />
       <Icon icon="mdi:kubernetes" width={27} height={27} />
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant="caption" color="text.secondary" noWrap>
+        <Typography variant="caption" noWrap sx={{ color: 'text.secondary' }}>
           {data.namespace ? 'Namespace' : 'Scope'}
         </Typography>
         <Typography variant="body2" noWrap sx={{ fontWeight: 650 }}>
@@ -574,14 +574,18 @@ export function ManagedResourceFlow({
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={2}>
+      <Stack
+        direction="row"
+        spacing={2}
+        sx={{ alignItems: 'baseline', justifyContent: 'space-between' }}
+      >
         <Box>
           <AnchoredSubheading
             title="Replication flow"
             variant="subtitle1"
             sx={{ fontWeight: 600 }}
           />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             {groupByNamespace && 'Managed resources are grouped by Namespace. '}
             Select a managed resource to inspect its server-side apply diff.
           </Typography>
