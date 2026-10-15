@@ -15,13 +15,12 @@ import (
 
 // ResourcePermitTemplateSpec defines the desired state of a namespaced ResourcePermitTemplate.
 type ResourcePermitTemplateSpec struct {
-	// Impersonation identifies the namespace-local ServiceAccount used for
-	// context loading and every managed-resource action performed for requests
-	// using this template. When omitted, the tenant default ServiceAccount from
-	// CapsuleConfiguration is used. If neither is configured, Capsule uses its
-	// controller identity.
-	// +optional
-	Impersonation *meta.LocalRFC1123ObjectReference `json:"impersonation,omitempty"`
+	// Impersonation identifies the required ServiceAccount used for context loading
+	// and every managed-resource action, including cleanup. Namespaced templates
+	// use a ServiceAccount in their own namespace; global templates specify both
+	// name and namespace. There is no default execution identity.
+	// +kubebuilder:validation:Required
+	Impersonation *meta.LocalRFC1123ObjectReference `json:"impersonation"`
 
 	// Resources rendered and managed by this template.
 	// +kubebuilder:validation:Required
@@ -88,7 +87,7 @@ type ResourcePermitTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ResourcePermitTemplateSpec   `json:"spec,omitempty"`
+	Spec   ResourcePermitTemplateSpec   `json:"spec"`
 	Status ResourcePermitTemplateStatus `json:"status,omitempty"`
 }
 

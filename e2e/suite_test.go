@@ -8,12 +8,13 @@ import (
 	"fmt"
 	"testing"
 
-	permitsv1beta2 "github.com/projectcapsule/resource-permits/api/v1beta2"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
+	"github.com/projectcapsule/capsule/pkg/api/rbac"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8smeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -24,8 +25,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
-	"github.com/projectcapsule/capsule/pkg/api/rbac"
+	permitsv1beta2 "github.com/projectcapsule/resource-permits/api/v1beta2"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -84,6 +84,9 @@ var _ = SynchronizedAfterSuite(
 		// Keep this empty, or put per-worker cleanup here.
 	},
 	func() {
+		if k8sClient == nil {
+			return
+		}
 		Eventually(func() error {
 			var quotas capsulev1beta2.GlobalResourceQuotaList
 
@@ -92,6 +95,9 @@ var _ = SynchronizedAfterSuite(
 				&quotas,
 				client.MatchingLabels{"env": "e2e"},
 			); err != nil {
+				if k8smeta.IsNoMatchError(err) {
+					return nil
+				}
 				return err
 			}
 
@@ -142,6 +148,9 @@ var _ = SynchronizedAfterSuite(
 				&tnts,
 				client.MatchingLabels{"env": "e2e"},
 			); err != nil {
+				if k8smeta.IsNoMatchError(err) {
+					return nil
+				}
 				return err
 			}
 

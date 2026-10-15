@@ -16,12 +16,12 @@ import (
 
 // GlobalResourcePermitTemplateSpec defines the desired state of GlobalResourcePermitTemplate.
 type GlobalResourcePermitTemplateSpec struct {
-	// Impersonation identifies the ServiceAccount used for context loading and
-	// every managed-resource action performed for requests using this template.
-	// When omitted, the global default ServiceAccount from CapsuleConfiguration
-	// is used. If neither is configured, Capsule uses its controller identity.
-	// +optional
-	Impersonation *meta.NamespacedRFC1123ObjectReferenceWithNamespace `json:"impersonation,omitempty"`
+	// Impersonation identifies the required ServiceAccount used for context loading
+	// and every managed-resource action, including cleanup. Namespaced templates
+	// use a ServiceAccount in their own namespace; global templates specify both
+	// name and namespace. There is no default execution identity.
+	// +kubebuilder:validation:Required
+	Impersonation *meta.NamespacedRFC1123ObjectReferenceWithNamespace `json:"impersonation"`
 
 	// NamespaceSelectors limit the namespaces in which ResourcePermits may reference this template.
 	// Selectors are ORed. When omitted, the template is available in every namespace.
@@ -88,7 +88,7 @@ type GlobalResourcePermitTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   GlobalResourcePermitTemplateSpec   `json:"spec,omitempty"`
+	Spec   GlobalResourcePermitTemplateSpec   `json:"spec"`
 	Status GlobalResourcePermitTemplateStatus `json:"status,omitempty"`
 }
 

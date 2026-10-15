@@ -1,0 +1,11 @@
+metadata:
+  title: API reference
+  weight: 10
+  description: Generated reference for ResourcePermit and its template APIs.
+groups:
+  - group: addons.projectcapsule.dev
+    version: v1beta2
+    kinds:
+      - name: ResourcePermit
+      - name: ResourcePermitTemplate
+      - name: GlobalResourcePermitTemplate

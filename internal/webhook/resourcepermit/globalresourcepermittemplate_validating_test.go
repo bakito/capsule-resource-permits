@@ -19,6 +19,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/projectcapsule/capsule/pkg/api/meta"
 	"github.com/projectcapsule/capsule/pkg/api/rbac"
 	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
 
@@ -41,7 +42,7 @@ func TestGlobalResourcePermitTemplateValidationHandler(t *testing.T) {
 		{
 			name: "allow manual approval conditions",
 			brt: &permitsv1beta2.GlobalResourcePermitTemplate{
-				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 					Approvals: resourcepermit.ApprovalSpec{
 						Conditions: []string{`"reviewers" in reviewer.groups`, `reviewer.name == "alice"`},
 					},
@@ -53,7 +54,7 @@ func TestGlobalResourcePermitTemplateValidationHandler(t *testing.T) {
 		{
 			name: "allow if automatic approval is true and conditions are empty",
 			brt: &permitsv1beta2.GlobalResourcePermitTemplate{
-				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 					Approvals: resourcepermit.ApprovalSpec{Auto: true},
 					Resources: []apiruntime.ResourceTemplate{{Targets: []runtime.RawExtension{{Object: &corev1.ConfigMap{}}}}},
 				},
@@ -69,7 +70,7 @@ func TestGlobalResourcePermitTemplateValidationHandler(t *testing.T) {
 		{
 			name: "deny if an approval condition is invalid",
 			brt: &permitsv1beta2.GlobalResourcePermitTemplate{
-				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 					Approvals: resourcepermit.ApprovalSpec{
 						Auto:       true,
 						Conditions: []string{"request.spec.reason == 'test'", "foo.spec.reason == 'test'"},
@@ -83,7 +84,7 @@ func TestGlobalResourcePermitTemplateValidationHandler(t *testing.T) {
 		{
 			name: "allow if approval conditions are valid",
 			brt: &permitsv1beta2.GlobalResourcePermitTemplate{
-				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 					Approvals: resourcepermit.ApprovalSpec{
 						Auto:       true,
 						Conditions: []string{"request.spec.reason == 'test'", `requestor.name == "alice"`},
@@ -102,7 +103,7 @@ func TestGlobalResourcePermitTemplateValidationHandler(t *testing.T) {
 		{
 			name: "deny an approver without a name",
 			brt: &permitsv1beta2.GlobalResourcePermitTemplate{
-				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 					Approvals: resourcepermit.ApprovalSpec{Approvers: rbac.UserListSpec{{Kind: rbac.UserOwner}}},
 					Resources: []apiruntime.ResourceTemplate{{Targets: []runtime.RawExtension{{Object: &corev1.ConfigMap{}}}}},
 				},
@@ -113,7 +114,7 @@ func TestGlobalResourcePermitTemplateValidationHandler(t *testing.T) {
 		{
 			name: "allow if item schema is valid",
 			brt: &permitsv1beta2.GlobalResourcePermitTemplate{
-				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 					Resources:   []apiruntime.ResourceTemplate{{Targets: []runtime.RawExtension{{Object: &corev1.ConfigMap{}}}}},
 					ParamSchema: &runtime.RawExtension{Raw: []byte(`{"type": "string"}`)},
 				},
@@ -129,7 +130,7 @@ func TestGlobalResourcePermitTemplateValidationHandler(t *testing.T) {
 		{
 			name: "deny if item schema is invalid",
 			brt: &permitsv1beta2.GlobalResourcePermitTemplate{
-				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 					Resources:   []apiruntime.ResourceTemplate{{Targets: []runtime.RawExtension{{Object: &corev1.ConfigMap{}}}}},
 					ParamSchema: &runtime.RawExtension{Raw: []byte(`"type": `)},
 				},
@@ -140,7 +141,7 @@ func TestGlobalResourcePermitTemplateValidationHandler(t *testing.T) {
 		{
 			name: "deny if the Kubernetes resource form source is invalid",
 			brt: &permitsv1beta2.GlobalResourcePermitTemplate{
-				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 					Resources: []apiruntime.ResourceTemplate{{Targets: []runtime.RawExtension{{Object: &corev1.ConfigMap{}}}}},
 					ParamSchema: &runtime.RawExtension{Raw: []byte(`{
 						"type":"object",
@@ -161,7 +162,7 @@ func TestGlobalResourcePermitTemplateValidationHandler(t *testing.T) {
 		},
 		{
 			name: "allow a multi-document string template",
-			brt: &permitsv1beta2.GlobalResourcePermitTemplate{Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+			brt: &permitsv1beta2.GlobalResourcePermitTemplate{Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 				Resources: []apiruntime.ResourceTemplate{{Template: `
 apiVersion: v1
 kind: ConfigMap
@@ -178,7 +179,7 @@ metadata:
 		},
 		{
 			name: "deny a resource without targets or template",
-			brt: &permitsv1beta2.GlobalResourcePermitTemplate{Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+			brt: &permitsv1beta2.GlobalResourcePermitTemplate{Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 				Resources: []apiruntime.ResourceTemplate{{}},
 			}},
 			expected: http.StatusForbidden,
@@ -186,7 +187,7 @@ metadata:
 		},
 		{
 			name: "deny an empty target",
-			brt: &permitsv1beta2.GlobalResourcePermitTemplate{Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+			brt: &permitsv1beta2.GlobalResourcePermitTemplate{Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 				Resources: []apiruntime.ResourceTemplate{{Targets: []runtime.RawExtension{{}}}},
 			}},
 			expected: http.StatusForbidden,
@@ -194,7 +195,7 @@ metadata:
 		},
 		{
 			name: "deny an invalid string template",
-			brt: &permitsv1beta2.GlobalResourcePermitTemplate{Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
+			brt: &permitsv1beta2.GlobalResourcePermitTemplate{Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{Impersonation: &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 				Resources: []apiruntime.ResourceTemplate{{Template: `{{ if }}`}},
 			}},
 			expected: http.StatusForbidden,

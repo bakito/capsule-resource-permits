@@ -9,7 +9,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.42.1
-	github.com/projectcapsule/capsule v0.0.0-20261010212556-06de34c3711e
+	github.com/projectcapsule/capsule v0.14.7-0.20261014080808-ff814d6c2f6a
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
 	github.com/spf13/cobra v1.10.2
@@ -136,4 +136,3 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 )
-

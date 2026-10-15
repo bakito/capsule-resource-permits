@@ -1,0 +1,736 @@
+version: '3'
+
+silent: true
+
+set: [errexit, nounset, pipefail]
+
+vars:
+  GIT_VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  VERSION: '{{.VERSION | default .GIT_VERSION}}'
+  REGISTRY: '{{.REGISTRY | default "ghcr.io"}}'
+  REPOSITORY: '{{.REPOSITORY | default "projectcapsule/resource-permits"}}'
+  IMG: '{{.IMG | default (printf "%s/%s:%s" .REGISTRY .REPOSITORY .VERSION)}}'
+  IMAGE_PLATFORM: '{{.IMAGE_PLATFORM | default ""}}'
+  PLATFORMS: '{{.PLATFORMS | default "linux/amd64,linux/arm64"}}'
+  IMAGE_ARCHIVE: '{{.IMAGE_ARCHIVE | default "dist/controller.tar"}}'
+  IMAGE_REF: '{{.IMAGE_REF | default ""}}'
+  BUILD_DIR: '{{.BUILD_DIR | default "bin"}}'
+  ARTIFACTS: '{{.ARTIFACTS | default "artifacts"}}'
+  KIND_CLUSTER: '{{.KIND_CLUSTER | default "resource-permits-e2e"}}'
+  CERT_MANAGER_VERSION: '{{.CERT_MANAGER_VERSION | default "v1.21.2"}}'
+  KIND_NODE_IMAGE: '{{.KIND_NODE_IMAGE | default "kindest/node:v1.36.1"}}'
+  GO_TEST_FLAGS: '{{.GO_TEST_FLAGS | default "-race"}}'
+  ENTERPRISE_VERSION: '{{.ENTERPRISE_VERSION | default ""}}'
+  ENTERPRISE_REGISTRY: '{{.ENTERPRISE_REGISTRY | default "registry.projectcapsule.dev"}}'
+  DRY_RUN: '{{.DRY_RUN | default "false"}}'
+  DOCS_BASE_URL: '{{.DOCS_BASE_URL | default "https://resource-permits.addons.projectcapsule.dev/"}}'
+
+  DEV_CONTEXT: '{{.DEV_CONTEXT | default ""}}'
+  DEV_NAMESPACE: '{{.DEV_NAMESPACE | default "resource-permits-system"}}'
+  DEV_RELEASE: '{{.DEV_RELEASE | default "resource-permits"}}'
+  DEV_KIND_CLUSTER: '{{.DEV_KIND_CLUSTER | default ""}}'
+  DEV_HELM_VALUES: '{{.DEV_HELM_VALUES | default ""}}'
+  DEV_TIMEOUT: '{{.DEV_TIMEOUT | default "180"}}'
+
+  PLAYGROUND_CLUSTER: '{{.PLAYGROUND_CLUSTER | default "resource-permits-playground"}}'
+  PLAYGROUND_PORT: '{{.PLAYGROUND_PORT | default "18081"}}'
+  PLAYGROUND_DIRECTORY: '{{.ROOT_DIR}}/artifacts/playground/{{.PLAYGROUND_CLUSTER}}'
+
+  E2E_MODE: '{{.E2E_MODE | default "standalone"}}'
+  E2E_FILTER: '{{.E2E_FILTER | default "resource-permit"}}'
+  GINKGO_SEED: '{{.GINKGO_SEED | default "20261014"}}'
+
+tasks:
+  default:
+    desc: List available tasks.
+    cmds:
+      - task --list
+
+  generate:
+    desc: Generate API DeepCopy methods.
+    run: once
+    cmds:
+      - controller-gen object:headerFile=api/boilerplate.go.txt paths=./api/... paths=./pkg/...
+
+  manifests:
+    desc: Generate CRDs directly into the Helm chart.
+    run: once
+    cmds:
+      - task: generate
+      - controller-gen rbac:roleName=manager-role,fileName=manager-role.yaml crd paths=./api/... paths=./pkg/... paths=./cmd/controller/... output:crd:artifacts:config=charts/resource-permits/crds output:rbac:artifacts:config=charts/resource-permits/files
+
+  fmt:
+    desc: Format Go sources and maintained YAML files.
+    cmds:
+      - golangci-lint fmt
+      - yamlfmt .
+
+  vet:
+    desc: Run go vet.
+    cmds:
+      - go vet ./api/... ./pkg/... ./internal/... ./cmd/... ./e2e/...
+
+  test:
+    desc: Run unit tests with race detection and collect coverage.
+    env:
+      GO_TEST_FLAGS: '{{.GO_TEST_FLAGS}}'
+    cmds:
+      - task: generate
+      - |
+        read -r -a flags <<< "$GO_TEST_FLAGS"
+        go test "${flags[@]}" ./api/... ./pkg/... ./internal/... ./cmd/... -coverprofile=coverage.out
+
+  test:unit:
+    desc: Run unit tests without a Kubernetes cluster.
+    env:
+      GO_TEST_FLAGS: '{{.GO_TEST_FLAGS}}'
+    cmds:
+      - task: generate
+      - |
+        read -r -a flags <<< "$GO_TEST_FLAGS"
+        go test "${flags[@]}" ./api/... ./pkg/... ./internal/... ./cmd/...
+
+  docs:generate:
+    desc: Generate the API reference from Helm CRDs using crdoc.
+    cmds:
+      - task: manifests
+      - crdoc --resources charts/resource-permits/crds --template frontmatter.tmpl --toc docs/api-reference.yaml --output "${REFERENCE_PATH:-docs/content/docs/reference/api.md}"
+
+  docs:install:
+    desc: Install locked Doks theme and asset dependencies.
+    dir: docs
+    run: once
+    cmds:
+      - npm ci --ignore-scripts --no-audit --no-fund
+
+  docs:build:
+    desc: Build the Hugo documentation into dist/docs.
+    env:
+      DOCS_BASE_URL: '{{.DOCS_BASE_URL}}'
+    cmds:
+      - task: docs:install
+      - task: docs:generate
+      - npm --prefix docs run build -- --baseURL "$DOCS_BASE_URL"
+
+  docs:serve:
+    desc: Preview documentation at http://localhost:1313 with live reload.
+    cmds:
+      - task: docs:install
+      - task: docs:generate
+      - npm --prefix docs run dev -- --baseURL http://localhost:1313/
+
+  docs:check:
+    desc: Check API-reference drift and rendered links for root and subpath sites.
+    cmds:
+      - task: docs:install
+      - |
+        reference=$(mktemp)
+        trap 'rm -f "$reference"' EXIT
+        REFERENCE_PATH="$reference" task docs:generate
+        diff -u docs/content/docs/reference/api.md "$reference" || {
+          echo 'API reference is stale. Run task docs:generate.' >&2
+          exit 1
+        }
+      - |
+        scratch=$(mktemp -d)
+        trap 'rm -rf "$scratch"' EXIT
+        for prefix in '' resource-permits; do
+          site="$scratch/${prefix:-root}"
+          npm --prefix docs run build -- --baseURL "https://resource-permits.addons.projectcapsule.dev/${prefix:+$prefix/}" --destination "$site/$prefix"
+          lychee --offline --include-fragments --index-files index.html --no-progress --root-dir "$site" \
+            --remap "^https://resource-permits[.]addons[.]projectcapsule[.]dev/(.*) file://$site/\$1" "$site/$prefix/**/*.html"
+        done
+
+  docs:test:browser:
+    desc: Test documentation navigation and search on desktop and mobile Chromium.
+    cmds:
+      - task: docs:install
+      - npm --prefix docs run test:browser
+
+  docs:browser:install:
+    desc: Install Chromium and its Linux runtime dependencies for documentation tests.
+    cmds:
+      - task: docs:install
+      - npm --prefix docs exec -- playwright install --with-deps chromium
+
+  headlamp:install:
+    desc: Install the plugin's locked npm dependencies.
+    dir: headlamp
+    cmds:
+      - npm ci --include=dev --no-audit --no-fund
+
+  headlamp:check:
+    desc: Lint, format-check, type-check, test and build the Headlamp plugin.
+    dir: headlamp
+    env:
+      CI: 'true'
+    cmds:
+      - npm run lint
+      - npm run format -- --check
+      - npm run tsc
+      - npm test
+      - npm run build
+
+  headlamp:build:
+    desc: Build the plugin into headlamp/dist.
+    dir: headlamp
+    cmds:
+      - npm run build
+
+  headlamp:serve:
+    desc: Start the Headlamp SDK plugin development watcher.
+    dir: headlamp
+    cmds:
+      - npm start
+
+  headlamp:package:
+    desc: Package the plugin into dist/headlamp without publishing.
+    dir: headlamp
+    cmds:
+      - npm run build
+      - |
+        scratch=$(mktemp -d)
+        trap 'rm -rf "$scratch"' EXIT
+        npm run package -- . "$scratch"
+        mkdir -p ../dist/headlamp
+        mv "$scratch"/*.tar.gz ../dist/headlamp/
+
+  headlamp:release-build:
+    desc: Check and build the versioned plugin for GoReleaser without changing source package files.
+    env:
+      HEADLAMP_VERSION: '{{trimPrefix "v" .VERSION}}'
+    cmds:
+      - task: headlamp:install
+      - task: headlamp:check
+      - cp headlamp/package.json headlamp/dist/package.json
+      - npm --prefix headlamp/dist version "$HEADLAMP_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
+
+  lint:
+    desc: Lint Go sources.
+    aliases: [golint]
+    cmds:
+      - golangci-lint run --timeout=5m
+
+  lint:fix:
+    desc: Apply Go lint and formatting fixes.
+    aliases: [lint-fix, golint-fix]
+    cmds:
+      - golangci-lint fmt
+      - golangci-lint run --fix --timeout=5m
+
+  lint:config:
+    desc: Validate the Go linter configuration.
+    aliases: [lint-config]
+    cmds:
+      - golangci-lint config verify
+
+  lint:yaml:
+    desc: Validate YAML syntax and formatting without Python.
+    aliases: [lint-yaml]
+    cmds:
+      - prek run check-yaml --all-files
+      - task: lint:yaml:format
+
+  lint:actions:
+    desc: Validate GitHub Actions and inline shell scripts.
+    aliases: [lint-actions]
+    cmds:
+      - actionlint -pyflakes=''
+
+  lint:files:
+    desc: Run native prek file hygiene and syntax checks.
+    cmds:
+      - prek run --group files {{if .CLI_ARGS}}--files {{.CLI_ARGS}}{{else}}--all-files{{end}}
+
+  lint:commits:
+    desc: Validate Conventional Commits between COMMIT_BASE and COMMIT_HEAD.
+    cmds:
+      - |
+        : "${COMMIT_HEAD:=HEAD}"
+        if [[ -z "${COMMIT_BASE:-}" || "$COMMIT_BASE" =~ ^0+$ ]]; then
+          commits=$(git rev-list -1 "$COMMIT_HEAD" --)
+        else
+          commits=$(git rev-list "$COMMIT_BASE..$COMMIT_HEAD" --)
+        fi
+        while IFS= read -r commit; do
+          [[ -n "$commit" ]] || continue
+          git show -s --format=%B "$commit" -- | cog verify --ignore-merge-commits --file -
+        done <<< "$commits"
+
+  test:benchmarks:
+    desc: Check benchmark fixtures with the race detector.
+    cmds:
+      - go test -race ./internal/... -run '^$' -bench . -benchtime=1x
+
+  hooks:install:
+    desc: Install prek's pre-commit and commit-msg hooks.
+    cmds:
+      - prek install --force --hook-type pre-commit --hook-type commit-msg
+
+  hooks:check:
+    desc: Run all pre-commit hooks on tracked files.
+    cmds:
+      - prek run --all-files
+
+  verify-generated:
+    desc: Reject stale or untracked generated artifacts.
+    cmds:
+      - task: generate
+      - task: manifests
+      - git diff --exit-code -- ':(glob)api/**/zz_generated*.go' ':(glob)pkg/**/zz_generated*.go' charts/resource-permits/crds
+      - |
+        if [ -n "$(git ls-files --others --exclude-standard -- ':(glob)api/**/zz_generated*.go' ':(glob)pkg/**/zz_generated*.go' charts/resource-permits/crds)" ]; then
+          echo 'Untracked generated files found in api/ or Helm chart assets' >&2
+          exit 1
+        fi
+
+  build:
+    desc: Build the controller and kubectl plugin binaries.
+    aliases: [all]
+    env:
+      BUILD_DIR: '{{.BUILD_DIR}}'
+    cmds:
+      - task: generate
+      - task: manifests
+      - task: vet
+      - mkdir -p "$BUILD_DIR"
+      - go build -trimpath -o "$BUILD_DIR/manager" ./cmd/controller
+
+      - go build -trimpath -o "$BUILD_DIR/kubectl-resource_permits" ./cmd/cli
+
+  run:
+    desc: Run the controller against the current kubeconfig context.
+    cmds:
+      - task: generate
+      - task: manifests
+      - go run ./cmd/controller
+
+  dev:deploy:
+    desc: Build current source with ko and deploy with Helm to an explicit development context.
+    env:
+      DEV_CONTEXT: '{{.DEV_CONTEXT}}'
+      DEV_NAMESPACE: '{{.DEV_NAMESPACE}}'
+      DEV_RELEASE: '{{.DEV_RELEASE}}'
+      DEV_KIND_CLUSTER: '{{.DEV_KIND_CLUSTER}}'
+      DEV_HELM_VALUES: '{{.DEV_HELM_VALUES}}'
+      DEV_TIMEOUT: '{{.DEV_TIMEOUT}}'
+      IMG: '{{.IMG}}'
+    cmds:
+      - task: manifests
+      - |
+        : "${DEV_CONTEXT:?Set DEV_CONTEXT}" "${DEV_KIND_CLUSTER:?Set DEV_KIND_CLUSTER}"
+        scratch=$(mktemp -d)
+        trap 'rm -rf "$scratch"' EXIT
+        kind get kubeconfig --name "$DEV_KIND_CLUSTER" > "$scratch/kubeconfig"
+        identity='{.clusters[0].cluster.server}{"\n"}{.clusters[0].cluster.certificate-authority-data}'
+        expected=$(kubectl --kubeconfig "$scratch/kubeconfig" config view --minify --flatten --raw -o "jsonpath=$identity")
+        actual=$(kubectl --context "$DEV_CONTEXT" config view --minify --flatten --raw -o "jsonpath=$identity")
+        [[ -n "$expected" && "$expected" == "$actual" ]] || { echo 'DEV_CONTEXT does not point to DEV_KIND_CLUSTER' >&2; exit 1; }
+        arch=$(kubectl --context "$DEV_CONTEXT" get nodes -o 'jsonpath={.items[0].status.nodeInfo.architecture}')
+        image="$IMG-$(date +%s)-$(openssl rand -hex 4)"
+        IMG="$image" IMAGE_PLATFORM="linux/$arch" IMAGE_ARCHIVE="$scratch/controller.tar" task image:build
+        kind load image-archive "$scratch/controller.tar" --name "$DEV_KIND_CLUSTER"
+        values=(--reset-values)
+        if [[ -n "$DEV_HELM_VALUES" ]]; then values+=(--values "$DEV_HELM_VALUES"); fi
+        helm --kube-context "$DEV_CONTEXT" upgrade --install "$DEV_RELEASE" charts/resource-permits \
+          --namespace "$DEV_NAMESPACE" --create-namespace --skip-crds "${values[@]}" \
+          --set crds.inline=true --set manager.hostUsers=true \
+          --set-string "manager.image.reference=$image" \
+          --set manager.image.pullPolicy=Never --wait --timeout "${DEV_TIMEOUT}s"
+        kubectl --context "$DEV_CONTEXT" -n "$DEV_NAMESPACE" rollout status "deployment/$DEV_RELEASE" --timeout="${DEV_TIMEOUT}s"
+        selector="app.kubernetes.io/instance=$DEV_RELEASE"
+        kubectl --context "$DEV_CONTEXT" wait validatingwebhookconfiguration --selector "$selector" \
+          --for='jsonpath={.webhooks[0].clientConfig.caBundle}' --timeout="${DEV_TIMEOUT}s"
+        kubectl --context "$DEV_CONTEXT" wait mutatingwebhookconfiguration --selector "$selector" \
+          --for='jsonpath={.webhooks[0].clientConfig.caBundle}' --timeout="${DEV_TIMEOUT}s"
+
+  image:build:
+    desc: Build a Linux image archive with ko, without a container daemon or registry push.
+    aliases: ['image:ko', ko-build-controller, ko-build-all]
+    vars: &image-vars
+      IMAGE_TAG: '{{.IMG | splitList ":" | last}}'
+      IMAGE_REPOSITORY: '{{trimSuffix (printf ":%s" .IMAGE_TAG) .IMG}}'
+    env: &image-env
+      IMG: '{{.IMG}}'
+      VERSION: '{{.VERSION}}'
+      IMAGE_TAG: '{{.IMAGE_TAG}}'
+      KO_DOCKER_REPO: '{{.IMAGE_REPOSITORY}}'
+      CGO_ENABLED: '0'
+      IMAGE_PLATFORM: '{{.IMAGE_PLATFORM}}'
+      IMAGE_ARCHIVE: '{{.IMAGE_ARCHIVE}}'
+      PLATFORMS: '{{.PLATFORMS}}'
+    preconditions: &tagged-image
+      - sh: '[[ "$IMG" != *@* && "${IMG##*/}" == *:* && "$IMAGE_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ && "$KO_DOCKER_REPO" =~ ^[a-z0-9][a-z0-9./:_-]*$ ]]'
+        msg: IMG must contain a repository and one valid tag, without a digest.
+    cmds:
+      - task: generate
+      - |
+        : "${IMAGE_PLATFORM:=linux/$(go env GOHOSTARCH)}"
+        [[ "$IMAGE_PLATFORM" == linux/* && "$IMAGE_PLATFORM" != *,* ]] || { echo 'IMAGE_PLATFORM must select one Linux architecture' >&2; exit 1; }
+        mkdir -p "$(dirname "$IMAGE_ARCHIVE")"
+        rm -f "$IMAGE_ARCHIVE"
+        ko build ./cmd/controller --bare "--tags=$IMAGE_TAG" --push=false "--platform=$IMAGE_PLATFORM" "--tarball=$IMAGE_ARCHIVE" --tag-only
+
+  image:push:
+    desc: Publish multi-platform images with ko and print the immutable index reference.
+    aliases: [ko-publish-controller]
+    vars: *image-vars
+    env: *image-env
+    preconditions: *tagged-image
+    cmds:
+      - task generate >&2
+      - |
+        # ko's stdout is the index; --image-refs also includes child manifests.
+        ref=$(ko build ./cmd/controller --bare "--tags=$IMAGE_TAG" --push=true "--platform=$PLATFORMS")
+        if [[ ! "$ref" =~ ^[^[:space:]@]+@sha256:[a-f0-9]{64}$ ]] ||
+           [[ "${ref%@*}" != "$KO_DOCKER_REPO" && "${ref%@*}" != "$IMG" ]]; then
+          echo 'ko did not produce the expected immutable image reference' >&2
+          exit 1
+        fi
+        printf '%s@%s\n' "$KO_DOCKER_REPO" "${ref##*@}"
+
+  image:sign:
+    desc: Sign an immutable IMAGE_REF returned by image:push or helm:push.
+    env:
+      IMAGE_REF: '{{.IMAGE_REF}}'
+    cmds:
+      - |
+        ref=${IMAGE_REF:?Set IMAGE_REF to the immutable reference to sign}
+        if [[ ! "$ref" =~ ^[^[:space:]@]+@sha256:[a-f0-9]{64}$ ]]; then
+          echo 'IMAGE_REF must be one immutable image reference' >&2
+          exit 1
+        fi
+        cosign sign --yes "$ref"
+
+  registry:login:
+    desc: Authenticate ko and Cosign with REGISTRY_USERNAME and REGISTRY_PASSWORD.
+    env:
+      REGISTRY: '{{.REGISTRY}}'
+    cmds:
+      - printf '%s' "${REGISTRY_PASSWORD:?REGISTRY_PASSWORD is required}" | ko login "$REGISTRY" --username "${REGISTRY_USERNAME:?REGISTRY_USERNAME is required}" --password-stdin
+
+  helm:login:
+    desc: Authenticate Helm with REGISTRY_USERNAME and REGISTRY_PASSWORD.
+    env:
+      REGISTRY: '{{.REGISTRY}}'
+    cmds:
+      - printf '%s' "${REGISTRY_PASSWORD:?REGISTRY_PASSWORD is required}" | helm registry login "$REGISTRY" --username "${REGISTRY_USERNAME:?REGISTRY_USERNAME is required}" --password-stdin
+
+  playground:
+    desc: Create a persistent standalone Resource Permits playground with Flux-managed Headlamp.
+    env:
+      PLAYGROUND_CLUSTER: '{{.PLAYGROUND_CLUSTER}}'
+      PLAYGROUND_DIRECTORY: '{{.PLAYGROUND_DIRECTORY}}'
+      PLAYGROUND_PORT: '{{.PLAYGROUND_PORT}}'
+      DEV_NAMESPACE: '{{.DEV_NAMESPACE}}'
+      KIND_NODE_IMAGE: '{{.KIND_NODE_IMAGE}}'
+      CERT_MANAGER_VERSION: '{{.CERT_MANAGER_VERSION}}'
+    cmds:
+      - |
+        [[ "$PLAYGROUND_CLUSTER" =~ ^[a-z0-9][a-z0-9-]{0,50}[a-z0-9]$ ]] || { echo 'Invalid PLAYGROUND_CLUSTER' >&2; exit 1; }
+        clusters=$(kind get clusters)
+        if grep -Fxq "$PLAYGROUND_CLUSTER" <<< "$clusters"; then
+          echo "Cluster $PLAYGROUND_CLUSTER already exists; use dev:deploy to update it or playground:headlamp to connect." >&2
+          exit 1
+        fi
+        mkdir -p "$PLAYGROUND_DIRECTORY"
+        chmod 700 "$PLAYGROUND_DIRECTORY"
+        export KUBECONFIG="$PLAYGROUND_DIRECTORY/kubeconfig"
+        task headlamp:install headlamp:build
+        kind create cluster --name "$PLAYGROUND_CLUSTER" --image "$KIND_NODE_IMAGE" \
+          --config playground/kind.config.yaml --kubeconfig "$KUBECONFIG" --wait 120s
+        helm upgrade --install cert-manager oci://quay.io/jetstack/charts/cert-manager \
+          --namespace cert-manager --create-namespace --version "$CERT_MANAGER_VERSION" \
+          --set crds.enabled=true --wait --timeout 180s
+        export DEV_CONTEXT="kind-$PLAYGROUND_CLUSTER"
+        export DEV_RELEASE=resource-permits
+        export DEV_KIND_CLUSTER="$PLAYGROUND_CLUSTER"
+        export DEV_HELM_VALUES=playground/installation/resource-permits/values.yaml
+        export IMG=resource-permits:playground
+        task dev:deploy
+        flux install --components=source-controller,helm-controller --watch-all-namespaces=false --timeout=180s
+        kubectl -n kube-system create configmap resource-permits-headlamp-plugin \
+          --from-file=main.js=headlamp/dist/main.js --from-file=package.json=headlamp/package.json \
+          --dry-run=client -o yaml | kubectl apply --server-side --field-manager=resource-permits-playground -f -
+        kubectl apply -k playground/installation/headlamp
+        kubectl -n flux-system wait helmrelease/headlamp --for=condition=Ready --timeout=300s
+        kubectl -n kube-system rollout status deployment/headlamp --timeout=120s
+        printf '\nPlayground ready. Cluster: %s\nKubeconfig: %s\n' "$PLAYGROUND_CLUSTER" "$KUBECONFIG"
+        printf 'Headlamp: task playground:headlamp PLAYGROUND_CLUSTER=%s PLAYGROUND_PORT=%s\n' "$PLAYGROUND_CLUSTER" "$PLAYGROUND_PORT"
+        printf 'The cluster remains running until you explicitly delete it with kind delete cluster.\n'
+
+  playground:headlamp:
+    desc: Forward Headlamp to localhost; stopping this task leaves the playground running.
+    env:
+      KUBECONFIG: '{{.PLAYGROUND_DIRECTORY}}/kubeconfig'
+      PLAYGROUND_CLUSTER: '{{.PLAYGROUND_CLUSTER}}'
+      PLAYGROUND_PORT: '{{.PLAYGROUND_PORT}}'
+    preconditions:
+      - sh: 'test -f "$KUBECONFIG"'
+        msg: Run task playground first to create the cluster and its kubeconfig.
+    cmds:
+      - kubectl --context "kind-$PLAYGROUND_CLUSTER" -n kube-system port-forward service/headlamp "$PLAYGROUND_PORT:80" --address=127.0.0.1
+
+  e2e:
+    desc: Test standalone in isolated Kind; opt into Capsule integration with E2E_MODE=capsule. Only the test cluster is removed.
+    aliases: [test-e2e]
+    env:
+      KIND_CLUSTER: '{{.KIND_CLUSTER}}'
+      KIND_NODE_IMAGE: '{{.KIND_NODE_IMAGE}}'
+      CERT_MANAGER_VERSION: '{{.CERT_MANAGER_VERSION}}'
+      ARTIFACTS: '{{.ARTIFACTS}}'
+      E2E_MODE: '{{.E2E_MODE}}'
+      E2E_FILTER: '{{.E2E_FILTER}}'
+      GINKGO_SEED: '{{.GINKGO_SEED}}'
+    cmds:
+      - |
+        bash -euo pipefail <<'BASH'
+        umask 077
+        [[ "$E2E_MODE" == capsule || "$E2E_MODE" == standalone ]] || { echo 'E2E_MODE must be capsule or standalone' >&2; exit 1; }
+        mkdir -p "$ARTIFACTS"
+        ARTIFACTS=$(cd "$ARTIFACTS" && pwd)
+        clusters=$(kind get clusters)
+        if grep -Fxq "$KIND_CLUSTER" <<< "$clusters"; then
+          echo "Refusing to reuse or delete existing cluster $KIND_CLUSTER" >&2; exit 1
+        fi
+        export KUBECONFIG
+        KUBECONFIG=$(mktemp)
+        cluster_started=false
+        cleanup() {
+          result=$?
+          trap - EXIT INT TERM
+          if [[ "$cluster_started" == true ]]; then
+            kind export logs --name "$KIND_CLUSTER" "$ARTIFACTS/cluster" > "$ARTIFACTS/export.log" 2>&1 || true
+            kubectl get namespaces,events -A -o yaml > "$ARTIFACTS/cluster-state.yaml" 2>&1 || true
+            kubectl -n capsule-system logs -l app.kubernetes.io/name=resource-permits --all-containers --prefix > "$ARTIFACTS/addon.log" 2>&1 || true
+            if [[ "$E2E_MODE" == capsule ]]; then
+              kubectl -n capsule-system logs -l app.kubernetes.io/name=capsule --all-containers --prefix > "$ARTIFACTS/capsule.log" 2>&1 || true
+            fi
+            kind delete cluster --name "$KIND_CLUSTER" || result=1
+          fi
+          rm -f "$KUBECONFIG"
+          exit "$result"
+        }
+        trap cleanup EXIT
+        trap 'exit 130' INT
+        trap 'exit 143' TERM
+        cluster_started=true
+        kind create cluster --name "$KIND_CLUSTER" --image "$KIND_NODE_IMAGE" --kubeconfig "$KUBECONFIG" --wait 120s
+        helm upgrade --install cert-manager oci://quay.io/jetstack/charts/cert-manager \
+          --namespace cert-manager --create-namespace --version "$CERT_MANAGER_VERSION" \
+          --set crds.enabled=true --wait --timeout 180s
+        export DEV_CONTEXT="kind-$KIND_CLUSTER" DEV_KIND_CLUSTER="$KIND_CLUSTER" DEV_NAMESPACE=capsule-system
+        if [[ "$E2E_MODE" == capsule ]]; then
+          task dev:capsule
+          DEV_HELM_VALUES=playground/installation/resource-permits/values-capsule.yaml task dev:deploy
+        else
+          DEV_HELM_VALUES=charts/resource-permits/ci/admission-values.yaml task dev:deploy
+        fi
+        # Exercise the production CRD upgrade hook after the inline development install.
+        # The inline CRDs carry the keep policy, so switching modes preserves them.
+        helm --kube-context "$DEV_CONTEXT" upgrade resource-permits charts/resource-permits \
+          --namespace "$DEV_NAMESPACE" --reuse-values --set crds.inline=false --wait --timeout 180s
+        printf 'Mode: %s\nCapsule library: %s\nAddon: %s\nFilter: %s\nSeed: %s\nContext: %s\n' \
+          "$E2E_MODE" "$(go list -m github.com/projectcapsule/capsule)" "$(git rev-parse HEAD)" "$E2E_FILTER" "$GINKGO_SEED" "$DEV_CONTEXT" > "$ARTIFACTS/run.txt"
+        if [[ "$E2E_MODE" == standalone ]]; then
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --seed="$GINKGO_SEED" --fail-on-empty \
+            --label-filter=standalone --json-report="$ARTIFACTS/standalone.json" ./e2e
+          exit 0
+        fi
+        parallel_filter='!config && !standalone'
+        config_filter='config'
+        if [[ "$E2E_FILTER" != all ]]; then
+          parallel_filter="($E2E_FILTER) && !config && !standalone"
+          config_filter="($E2E_FILTER) && config"
+        fi
+        parallel_status=0
+        config_status=0
+        go run github.com/onsi/ginkgo/v2/ginkgo -v -p --seed="$GINKGO_SEED" --fail-on-empty \
+          --label-filter="$parallel_filter" --json-report="$ARTIFACTS/parallel.json" ./e2e > "$ARTIFACTS/parallel.log" 2>&1 || parallel_status=$?
+        cat "$ARTIFACTS/parallel.log"
+        go run github.com/onsi/ginkgo/v2/ginkgo -v --seed="$GINKGO_SEED" --fail-on-empty \
+          --label-filter="$config_filter" --json-report="$ARTIFACTS/config.json" ./e2e > "$ARTIFACTS/config.log" 2>&1 || config_status=$?
+        cat "$ARTIFACTS/config.log"
+        (( parallel_status == 0 && config_status == 0 ))
+        BASH
+
+  helm:lint:
+    desc: Validate Helm packaging.
+    aliases: [helm-lint]
+    cmds:
+      - task: manifests
+      - task: helm:schema
+      - helm lint charts/resource-permits --strict
+      - |
+        for values in charts/resource-permits/ci/*-values.yaml; do
+          helm lint charts/resource-permits --strict --values "$values"
+        done
+
+  helm:docs:
+    desc: Generate chart documentation from values and the chart README template.
+    cmds:
+      - helm-docs --chart-search-root charts/resource-permits
+
+  helm:schema:
+    desc: Generate the Helm values JSON schema using Helm Docs comments.
+    aliases: [helm-schema]
+    dir: charts/resource-permits
+    cmds:
+      - helm schema --use-helm-docs
+
+  helm:artifacthub:
+    desc: Lint chart metadata with the Artifact Hub CLI container.
+    env:
+      CHART_DIRECTORY: '{{.ROOT_DIR}}/charts'
+    cmds:
+      - docker run --rm --volume "${CHART_DIRECTORY}:/charts:ro" --workdir /charts --entrypoint ah artifacthub/ah lint
+
+  helm:verify:
+    desc: Check chart rendering and generated documentation/schema drift.
+    cmds:
+      - task: helm:lint
+      - task: helm:docs
+      - git diff --exit-code -- charts/resource-permits/README.md charts/resource-permits/values.schema.json
+      - test -z "$(git ls-files --others --exclude-standard charts/resource-permits/README.md charts/resource-permits/values.schema.json)"
+
+  helm:package:
+    desc: Package the chart using VERSION.
+    env:
+      CHART_VERSION: '{{trimPrefix "v" .VERSION}}'
+    cmds:
+      - task: manifests
+      - task: helm:schema
+      - mkdir -p dist/charts
+      - helm package charts/resource-permits --version "$CHART_VERSION" --app-version "$CHART_VERSION" --destination dist/charts
+
+  helm:push:
+    desc: Publish the chart to CHART_REGISTRY and print its immutable reference.
+    env:
+      CHART_VERSION: '{{trimPrefix "v" .VERSION}}'
+      CHART_REGISTRY: '{{.CHART_REGISTRY | default "oci://ghcr.io/projectcapsule/charts"}}'
+    cmds:
+      - task helm:package >&2
+      - |
+        if ! output=$(helm push "dist/charts/resource-permits-$CHART_VERSION.tgz" "$CHART_REGISTRY" 2>&1); then
+          printf '%s\n' "$output" >&2
+          exit 1
+        fi
+        printf '%s\n' "$output" >&2
+        digest=$(printf '%s\n' "$output" | sed -n 's/^Digest: \(sha256:[a-f0-9]*\)$/\1/p')
+        if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+          echo 'Helm did not return a valid digest' >&2
+          exit 1
+        fi
+        printf '%s/resource-permits@%s\n' "${CHART_REGISTRY#oci://}" "$digest"
+
+  release:check:
+    desc: Validate GoReleaser configuration.
+    cmds:
+      - goreleaser check
+
+  release:snapshot:
+    desc: Build release archives and SBOMs without publishing or signing.
+    cmds:
+      - task: release:check
+      - goreleaser release --snapshot --clean --skip=publish,sign --timeout 90m
+
+  release:
+    desc: Publish a tagged GitHub release (explicit invocation only).
+    cmds:
+      - task: release:check
+      - goreleaser release --clean --timeout 90m
+
+  enterprise:release:
+    desc: Publish the enterprise image and chart (use DRY_RUN=true to preview).
+    aliases: [enterprise-release]
+    vars:
+      CHANNEL: '{{.CHANNEL | default "enterprise"}}'
+      CHART_PATH: '{{if eq .CHANNEL "prereleases"}}charts/prereleases{{else}}charts{{end}}'
+    requires:
+      vars:
+        - name: CHANNEL
+          enum: [enterprise, prereleases]
+        - name: DRY_RUN
+          enum: ['true', 'false']
+    env:
+      ENTERPRISE_VERSION: '{{.ENTERPRISE_VERSION}}'
+      DRY_RUN: '{{.DRY_RUN}}'
+      IMAGE_REPOSITORY: '{{.ENTERPRISE_REGISTRY}}/{{.CHANNEL}}/resource-permits'
+      CHART_REGISTRY: 'oci://{{.ENTERPRISE_REGISTRY}}/{{.CHART_PATH}}'
+    cmds:
+      - |
+        bash -euo pipefail <<'BASH'
+        : "${ENTERPRISE_VERSION:?Set ENTERPRISE_VERSION to the release version}"
+        run() {
+          if [[ "$DRY_RUN" == true ]]; then printf '%q ' "$@"; printf '\n'; else "$@"; fi
+        }
+        run env "VERSION=$ENTERPRISE_VERSION" task helm:package
+        run env "IMG=$IMAGE_REPOSITORY:$ENTERPRISE_VERSION" task image:push
+        run env "VERSION=$ENTERPRISE_VERSION" "CHART_REGISTRY=$CHART_REGISTRY" task helm:push
+        printf '\nDeployment (requires cert-manager or supplied TLS, and enterprise registry credentials):\n'
+        printf 'helm upgrade --install resource-permits %q --namespace resource-permits-system --create-namespace --version %q --set-string manager.image.reference=%q\n' \
+          "$CHART_REGISTRY/resource-permits" "$ENTERPRISE_VERSION" "$IMAGE_REPOSITORY:$ENTERPRISE_VERSION"
+        BASH
+
+  enterprise:prerelease:
+    desc: Publish the prerelease image and chart (use DRY_RUN=true to preview).
+    aliases: [enterprise-prerelease]
+    cmds:
+      - task: enterprise:release
+        vars: {CHANNEL: prereleases}
+
+  check:
+    desc: Run the checks used by CI (e2e runs separately).
+    cmds:
+      - task: test
+      - task: lint
+      - task: lint:config
+      - task: lint:files
+      - task: lint:yaml
+      - task: lint:actions
+      - task: helm:lint
+      - task: verify-generated
+      - task: build
+      - task: docs:check
+
+  lint:yaml:format:
+    desc: Check maintained YAML formatting.
+    cmds:
+      - yamlfmt -lint {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}.{{end}}
+
+  lint:commit-message:
+    desc: Validate a commit-message file supplied after --.
+    cmds:
+      - cog verify --ignore-merge-commits --file {{.CLI_ARGS}}
+  dev:capsule:
+    desc: Optionally install Capsule for integration testing in an explicit development cluster.
+    env:
+      DEV_CONTEXT: '{{.DEV_CONTEXT}}'
+      DEV_KIND_CLUSTER: '{{.DEV_KIND_CLUSTER}}'
+      DEV_NAMESPACE: '{{.DEV_NAMESPACE}}'
+    cmds:
+      - |-
+        : "${DEV_CONTEXT:?Set DEV_CONTEXT}" "${DEV_KIND_CLUSTER:?Set DEV_KIND_CLUSTER}"
+        scratch=$(mktemp -d)
+        trap 'rm -rf "$scratch"' EXIT
+        kind get kubeconfig --name "$DEV_KIND_CLUSTER" > "$scratch/kubeconfig"
+        identity='{.clusters[0].cluster.server}{"\n"}{.clusters[0].cluster.certificate-authority-data}'
+        expected=$(kubectl --kubeconfig "$scratch/kubeconfig" config view --minify --flatten --raw -o "jsonpath=$identity")
+        actual=$(kubectl --context "$DEV_CONTEXT" config view --minify --flatten --raw -o "jsonpath=$identity")
+        [[ -n "$expected" && "$expected" == "$actual" ]] || { echo 'DEV_CONTEXT does not point to DEV_KIND_CLUSTER' >&2; exit 1; }
+        go mod download github.com/projectcapsule/capsule
+        capsule_source=$(go list -m -f '{{"{{.Dir}}"}}' github.com/projectcapsule/capsule)
+        arch=$(kubectl --context "$DEV_CONTEXT" get nodes -o 'jsonpath={.items[0].status.nodeInfo.architecture}')
+        image="ghcr.io/projectcapsule/capsule:dev-$(date +%s)-$(openssl rand -hex 4)"
+        (cd "$capsule_source" && KO_DOCKER_REPO=ghcr.io/projectcapsule/capsule ko build ./cmd/controller --bare \
+          --tags="${image##*:}" --push=false --platform="linux/$arch" --tarball="$scratch/capsule.tar" --tag-only)
+        kind load image-archive "$scratch/capsule.tar" --name "$DEV_KIND_CLUSTER"
+        cp -R "$capsule_source/charts/capsule" "$scratch/capsule-chart"
+        chmod -R u+w "$scratch/capsule-chart"
+        helm dependency build "$scratch/capsule-chart" --skip-refresh
+        helm --kube-context "$DEV_CONTEXT" upgrade --install capsule "$scratch/capsule-chart" \
+          --namespace "$DEV_NAMESPACE" --create-namespace \
+          --values playground/installation/capsule/values.yaml \
+          --set-string manager.image.registry=ghcr.io --set-string manager.image.repository=projectcapsule/capsule \
+          --set-string "manager.image.tag=${image##*:}" --wait --timeout 5m

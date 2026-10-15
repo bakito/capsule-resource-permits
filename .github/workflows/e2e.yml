@@ -1,0 +1,51 @@
+name: e2e
+on:
+  pull_request:
+    paths:
+      - '.github/actions/**'
+      - '.github/workflows/e2e.yml'
+      - 'api/**'
+      - 'pkg/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'playground/**'
+      - 'charts/**'
+      - 'e2e/**'
+      - '.ko.yaml'
+      - 'go.*'
+      - 'Taskfile.yml'
+      - 'devbox.*'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes: ['v1.33.0', 'v1.34.0', 'v1.35.0', 'v1.36.1']
+        mode: [standalone]
+        include:
+          # Keep tenant and ownership-safety coverage as an explicit integration run.
+          - kubernetes: v1.36.1
+            mode: capsule
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/setup
+      - name: Build with ko and test in isolated Kind
+        run: devbox run -- task e2e
+        env:
+          E2E_FILTER: all
+          E2E_MODE: ${{ matrix.mode }}
+          IMG: ghcr.io/projectcapsule/resource-permits:e2e
+          KIND_NODE_IMAGE: kindest/node:${{ matrix.kubernetes }}
+          KIND_CLUSTER: resource-permits-e2e
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: e2e-${{ matrix.kubernetes }}-${{ matrix.mode }}
+          path: artifacts/
+          if-no-files-found: warn

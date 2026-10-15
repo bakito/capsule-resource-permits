@@ -2,7 +2,7 @@ capabilities:
   - id: RESOURCEPERMITS.CAP01
     title: Delegated Resource Permits
     group: resource-management
-    description: |
+    description: |-
       Reconcile approved ResourcePermits using template authorization,
       authenticated request snapshots and scoped execution identities.
       Implementation: `internal/controllers/resourcepermit/resourcepermit_controller.go`,

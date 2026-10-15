@@ -6,6 +6,7 @@ package resourcepermit
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	permitsv1beta2 "github.com/projectcapsule/resource-permits/api/v1beta2"
@@ -207,6 +208,12 @@ func newReadinessTemplate(global bool) client.Object {
 	if global {
 		object = &permitsv1beta2.GlobalResourcePermitTemplate{}
 	}
+	switch template := object.(type) {
+	case *permitsv1beta2.ResourcePermitTemplate:
+		template.Spec.Impersonation = &meta.LocalRFC1123ObjectReference{Name: "runner"}
+	case *permitsv1beta2.GlobalResourcePermitTemplate:
+		template.Spec.Impersonation = &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"}
+	}
 	object.SetName("example")
 	object.SetUID("template-uid")
 	object.SetGeneration(2)
@@ -277,4 +284,30 @@ func requireTemplateMetric(t *testing.T, registry *prometheus.Registry, value fl
 	require.Len(t, families, 1)
 	require.Len(t, families[0].Metric, 1)
 	require.Equal(t, value, families[0].Metric[0].GetGauge().GetValue())
+}
+
+func TestTemplateReadinessRequiresServiceAccount(t *testing.T) {
+	t.Parallel()
+	for _, global := range []bool{false, true} {
+		t.Run(fmt.Sprintf("global=%t", global), func(t *testing.T) {
+			object := newReadinessTemplate(global)
+			switch template := object.(type) {
+			case *permitsv1beta2.ResourcePermitTemplate:
+				template.Spec.Impersonation = nil
+			case *permitsv1beta2.GlobalResourcePermitTemplate:
+				template.Spec.Impersonation = nil
+			}
+			cl := permitTemplateTestClient(t, object)
+			r, _ := permitTemplateTestReconciler(global, cl)
+			_, err := r.Reconcile(t.Context(), reconcile.Request{NamespacedName: client.ObjectKeyFromObject(object)})
+			require.ErrorContains(t, err, "spec.impersonation")
+			require.NoError(t, cl.Get(t.Context(), client.ObjectKeyFromObject(object), object))
+			generation, conditions := readinessTemplateStatus(object)
+			require.Equal(t, object.GetGeneration(), generation)
+			condition := conditions.GetConditionByType(meta.ReadyCondition)
+			require.NotNil(t, condition)
+			require.Equal(t, metav1.ConditionFalse, condition.Status)
+			require.Contains(t, condition.Message, "spec.impersonation")
+		})
+	}
 }

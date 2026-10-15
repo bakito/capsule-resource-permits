@@ -1,0 +1,111 @@
+{{- $values := omit .Values "webhooks" -}}
+{{- $_ := set $values "webhooks" (include "resource-permits.webhooks.renderValue" (dict "value" .Values.webhooks "ctx" $ "path" "webhooks") | mustFromJson) -}}
+{{- $ := set (omit . "Values") "Values" $values -}}
+{{- with $ }}
+{{- if and .Values.webhooks.enabled (or (not .Values.crds.exclusive) .Values.webhooks.exclusive) }}
+{{- if and .Values.webhooks.service.url (not (hasPrefix "https://" .Values.webhooks.service.url)) }}
+{{- fail "webhooks.service.url must use HTTPS" }}
+{{- end }}
+{{- if and (or .Values.webhooks.service.url (not .Values.webhooks.certificate.generate.enabled)) (not .Values.webhooks.service.caBundle) }}
+{{- fail "webhooks.service.caBundle is required for external admission or supplied certificates" }}
+{{- end }}
+{{- if not .Values.webhooks.service.url }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ default (printf "%s-webhook" (include "resource-permits.fullname" $)) .Values.webhooks.service.name }}
+  namespace: {{ default $.Release.Namespace $.Values.webhooks.service.namespace }}
+  labels:
+    {{- include "resource-permits.labels" $ | nindent 4 }}
+spec:
+  selector:
+    {{- include "resource-permits.selectorLabels" $ | nindent 4 }}
+  ports:
+  - port: {{ default 443 .Values.webhooks.service.port }}
+    targetPort: 9443
+{{- end }}
+{{- if and $.Values.webhooks.certificate.generate.enabled (not $.Values.webhooks.service.url) }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "resource-permits.fullname" $ }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "resource-permits.labels" $ | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "resource-permits.fullname" $ }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "resource-permits.labels" $ | nindent 4 }}
+spec:
+  secretName: {{ include "resource-permits.webhooks.secret" $ | quote }}
+  dnsNames:
+  - {{ default (printf "%s-webhook" (include "resource-permits.fullname" $)) .Values.webhooks.service.name | quote }}
+  - {{ printf "%s.%s.svc" (default (printf "%s-webhook" (include "resource-permits.fullname" $)) .Values.webhooks.service.name) (default .Release.Namespace .Values.webhooks.service.namespace) | quote }}
+  - {{ printf "%s-metrics" (include "resource-permits.fullname" $) }}
+  - {{ printf "%s-metrics.%s.svc" (include "resource-permits.fullname" $) .Release.Namespace }}
+  {{- range $dns := $.Values.webhooks.certificate.generate.dnsNames }}
+  - {{ $dns | quote }}
+  {{- end }}
+  {{- with $.Values.webhooks.certificate.generate.ipAddresses }}
+  ipAddresses:
+    {{- range $ip := . }}
+  - {{ $ip | quote }}
+    {{- end }}
+  {{- end }}
+  {{- with $.Values.webhooks.certificate.generate.uris }}
+  uris:
+    {{- range $uri := . }}
+  - {{ $uri | quote }}
+    {{- end }}
+  {{- end }}
+  {{- with $.Values.webhooks.certificate.generate.duration }}
+  duration: {{ . | quote }}
+  {{- end }}
+  {{- with $.Values.webhooks.certificate.generate.renewBefore }}
+  renewBefore: {{ . | quote }}
+  {{- end }}
+  subject:
+    organizations:
+      - projectcapsule.dev
+  issuerRef:
+    name: {{ include "resource-permits.fullname" $ }}
+    kind: Issuer
+{{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "resource-permits.fullname" $ }}-mutating
+  labels:
+    {{- include "resource-permits.labels" $ | nindent 4 }}
+    {{- include "resource-permits.webhooks.labels" $ | nindent 4 }}
+  annotations:
+    {{- include "resource-permits.webhooks.annotations" $ | nindent 4 }}
+webhooks:
+  - {{- include "resource-permits.webhooks.hook" (dict "ctx" $ "hook" .Values.webhooks.hooks.resourcepermitsMutating "name" "resourcepermits.mutating.addons.projectcapsule.dev" "path" "/resourcepermits/mutating") | nindent 4 }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "resource-permits.fullname" $ }}-validating
+  labels:
+    {{- include "resource-permits.labels" $ | nindent 4 }}
+    {{- include "resource-permits.webhooks.labels" $ | nindent 4 }}
+  annotations:
+    {{- include "resource-permits.webhooks.annotations" $ | nindent 4 }}
+webhooks:
+{{- range $resource := list "resourcepermits" "resourcepermittemplates" "globalresourcepermittemplates" }}
+  - {{- include "resource-permits.webhooks.hook" (dict "ctx" $ "hook" (index $.Values.webhooks.hooks $resource) "name" (printf "%s.validating.addons.projectcapsule.dev" $resource) "path" (printf "/%s/validating" $resource)) | nindent 4 }}
+{{- end }}
+  - {{- include "resource-permits.webhooks.hook" (dict "ctx" $ "hook" .Values.webhooks.hooks.resources "name" "protection.validating.addons.projectcapsule.dev" "path" "/generic/resourcepermit") | nindent 4 }}
+  - {{- include "resource-permits.webhooks.hook" (dict "ctx" $ "hook" .Values.webhooks.hooks.serviceaccounts "name" "serviceaccounts.references.addons.projectcapsule.dev" "path" "/serviceaccounts/references") | nindent 4 }}
+{{- end }}
+{{- end }}

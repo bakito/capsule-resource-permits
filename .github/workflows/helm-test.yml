@@ -1,0 +1,31 @@
+name: Test charts
+on:
+  pull_request:
+    paths:
+      - '.github/actions/**'
+      - '.github/workflows/helm-*.yml'
+      - 'charts/**'
+      - 'api/**'
+      - 'pkg/**'
+      - 'Taskfile.yml'
+      - 'devbox.*'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  artifacthub:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/setup
+      - name: Lint Artifact Hub metadata
+        run: devbox run -- task helm:artifacthub
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/setup
+      - name: Check chart rendering and generated documentation
+        run: devbox run -- task helm:verify

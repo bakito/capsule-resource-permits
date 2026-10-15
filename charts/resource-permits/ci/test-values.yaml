@@ -1,0 +1,6 @@
+
+manager:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 128Mi

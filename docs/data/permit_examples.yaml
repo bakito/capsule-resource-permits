@@ -1,0 +1,66 @@
+- id: template
+  title: 1. Define what teams can request
+  kind: ResourcePermitTemplate
+  source: platform/resourcepermittemplates/temporary-config.yaml
+  description: A platform operator defines a temporary ConfigMap, its inputs, reviewer group, and cleanup policy.
+  sections:
+    - key: defaultDuration
+      title: Limit the lifetime
+      path: spec.defaultDuration · maxDuration · keepFor
+      description: Use 30 minutes by default and allow at most two hours. Keep the expired permit for seven days as an audit record.
+      guide: /docs/concepts/templates#choose-the-execution-identity-and-limits
+      reference: /docs/reference/api#resourcepermittemplatespec
+    - key: impersonation
+      title: Execute with scoped permissions
+      path: spec.impersonation
+      description: Use permit-config-writer in the template namespace. The walkthrough grants this ServiceAccount permission to manage only ConfigMaps in that namespace.
+      guide: /docs/concepts/templates#choose-the-execution-identity-and-limits
+      reference: /docs/reference/api#resourcepermittemplatespecimpersonation
+    - key: approvals
+      title: Require a review
+      path: spec.approvals
+      description: A member of platform-on-call must approve the request. The reviewer also needs Kubernetes permission to update the permit status; group membership alone grants no RBAC permissions.
+      guide: /docs/concepts/requests#review-and-control-a-permit
+      reference: /docs/reference/api#resourcepermittemplatespecapprovals
+    - key: paramSchema
+      title: Validate the inputs
+      path: spec.paramSchema
+      description: Require a message between 1 and 200 characters and reject unknown parameters. Compatible clients use this schema to build the request form.
+      guide: /docs/concepts/parameter-schema
+      reference: /docs/reference/api#resourcepermittemplatespec
+    - key: resources
+      title: Render, protect, and clean up
+      path: spec.resources
+      description: Create a ConfigMap in the permit namespace using the validated message and trusted requester identity. Protect it while active and remove it on expiry. The permit name determines the ConfigMap name.
+      guide: /docs/concepts/managed-resources#resource-policy
+      reference: /docs/reference/api#resourcepermittemplatespecresourcesindex
+- id: permit
+  title: 2. Request an instance of the template
+  kind: ResourcePermit
+  source: user/solar/resourcepermits/temporary-config.yaml
+  description: A team member selects that template in the same namespace and requests a 20-minute instance. After approval, the controller creates the ConfigMap and manages its expiry.
+  sections:
+    - key: template
+      title: Select the template
+      path: spec.template
+      description: Refer to temporary-config in solar-system, the same namespace as this permit. The template must be Ready before the request can be accepted.
+      guide: /docs/concepts/templates#choose-the-template-scope
+      reference: /docs/reference/api#resourcepermitspectemplate
+    - key: params
+      title: Supply the inputs
+      path: spec.params
+      description: Provide the message required by the template schema. It becomes the ConfigMap's data.message after rendering and approval.
+      guide: /docs/concepts/parameter-schema
+      reference: /docs/reference/api#resourcepermitspec
+    - key: reason
+      title: Explain the request
+      path: spec.reason
+      description: Give reviewers the incident or business context. They inspect this reason together with the concrete rendered resources before deciding.
+      guide: /docs/concepts/requests#create-and-inspect-a-request
+      reference: /docs/reference/api#resourcepermitspec
+    - key: duration
+      title: Request a duration
+      path: spec.duration
+      description: Request 20 minutes within the template's two-hour limit. Without a future start time, an approved permit can activate immediately. Reviewers may adjust the duration within the template limits.
+      guide: /docs/concepts/requests#review-and-control-a-permit
+      reference: /docs/reference/api#resourcepermitspec

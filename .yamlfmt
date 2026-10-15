@@ -1,0 +1,22 @@
+formatter:
+  type: basic
+  indent: 2
+  retain_line_breaks_single: true
+  trim_trailing_whitespace: true
+gitignore_excludes: true
+exclude:
+  - .git
+  - .devbox
+  - .task
+  - bin
+  - dist
+  - artifacts
+  - builds
+  - docs/node_modules
+  - headlamp/node_modules
+  - headlamp/dist
+  - headlamp/test-results
+  - headlamp/playwright-report
+  - charts/resource-permits/templates
+  - charts/resource-permits/crds
+  - charts/resource-permits/files

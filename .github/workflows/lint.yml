@@ -1,0 +1,20 @@
+name: Linting
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/setup
+      - name: Validate generated artifacts
+        run: devbox run -- task verify-generated
+      - name: Lint sources, native file checks, YAML, and workflows
+        run: devbox run -- task lint lint:config lint:files lint:yaml lint:actions

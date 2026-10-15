@@ -1,0 +1,7 @@
+{{- $source := string . -}}
+{{- $html := highlight $source "yaml" "hl_inline=true" | replaceRE `^<code[^>]*>|</code>$` "" -}}
+{{/* Preserve exact YAML whitespace for copy/paste, including template scalars. */}}
+{{- if ne (htmlUnescape (replaceRE `<[^>]*>` "" $html)) $source -}}
+  {{- $html = htmlEscape $source -}}
+{{- end -}}
+{{- $html | safeHTML -}}

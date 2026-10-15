@@ -1,34 +1,400 @@
-replicaCount: 1
-image:
-  repository: ghcr.io/projectcapsule/resource-permits
-  tag: dev
-  pullPolicy: IfNotPresent
-# By default reuse Capsule's privileged controller identity in its namespace.
-# A dedicated identity must be authorized as a Capsule administrator and given
-# the permissions required by the templates it executes.
-serviceAccount:
-  create: false
-  name: capsule
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  jobs:
+    kubectl:
+      image:
+        # -- Set the image repository of the helm chart job
+        registry: docker.io
+        # -- Set the image repository of the helm chart job
+        repository: clastix/kubectl
+        # -- Set the image pull policy of the helm chart job
+        pullPolicy: IfNotPresent
+        # -- Set the image tag of the helm chart job
+        tag: ""
+      # -- ImagePullSecrets
+      imagePullSecrets: []
+      # -- Labels to add to the job pod
+      podLabels: {}
+      # -- Annotations to add to the job pod
+      podAnnotations: {}
+      # -- Labels to add to the job.
+      labels: {}
+      # -- Annotations to add to the job.
+      annotations: {}
+      # -- Set the restartPolicy
+      restartPolicy: Never
+      # -- Sets the ttl in seconds after a finished certgen job is deleted. Set to -1 to never delete.
+      ttlSecondsAfterFinished: 60
+      # @schema type: object
+      # @schema additionalProperties: true
+      # -- Security context for the job pods.
+      podSecurityContext:
+        enabled: true
+        seccompProfile:
+          type: "RuntimeDefault"
+      # @schema type: object
+      # @schema additionalProperties: true
+      # -- Security context for the job containers.
+      securityContext:
+        enabled: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        readOnlyRootFilesystem: true
+        runAsGroup: 1002
+        runAsNonRoot: true
+        runAsUser: 1002
+      # -- Job resources
+      resources: {}
+      # -- Set the node selector
+      nodeSelector: {}
+      # -- Set list of tolerations
+      tolerations: []
+      # -- Set affinity rules
+      affinity: {}
+      # -- Set Topology Spread Constraints
+      topologySpreadConstraints: []
+      # -- Set a pod priorityClassName
+      priorityClassName: ""
+      # -- Backofflimit for jobs
+      backoffLimit: 4
+
+# Manage CRD Lifecycle
+crds:
+  # -- Install the CustomResourceDefinitions (This also manages the lifecycle of the CRDs for update operations)
+  install: true
+  # -- Extra Labels for CRDs
+  labels: {}
+  # -- Extra Annotations for CRDs
+  annotations: {}
+  # -- Render CRDS inline (in this case use --skip-crds when installing the chart)
+  inline: false
+  # -- Retain CRDs and their resources when an inline installation is uninstalled
+  keep: true
+  # -- Only install the CRDs, no other primitives
+  exclusive: false
+
+# Manager Configuration
 manager:
-  capsuleConfiguration: default
-  workers: 1
-  kubeApiQPS: 50
-  kubeApiBurst: 100
-resources: {}
-nodeSelector: {}
-tolerations: []
+  # -- Amount of replicas
+  replicaCount: 1
+
+  image:
+    # -- Set the image registry
+    registry: ghcr.io
+    # -- Set the image repository
+    repository: projectcapsule/resource-permits
+    # -- Set the image pull policy.
+    pullPolicy: IfNotPresent
+    # -- Overrides the image tag whose default is the chart appVersion.
+    tag: ""
+    # -- Complete image reference, including an optional digest; overrides registry, repository, and tag
+    reference: ""
+
+  # -- Set the securityContext
+  podSecurityContext:
+    enabled: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  # -- Set the securityContext for the container
+  securityContext:
+    enabled: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  # -- Configure the liveness probe using Deployment probe spec
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      # @schema type: [integer, string]
+      port: 8081
+
+  # -- Configure the readiness probe using Deployment probe spec
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      # @schema type: [integer, string]
+      port: 8081
+
+  # -- Set the resource requests/limits
+  resources: {}
+  # limits:
+  #   cpu: 200m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+  # -- Set the priority class name of the controller pod
+  priorityClassName: '' # system-cluster-critical
+
+  # -- Set the node selector
+  nodeSelector: {}
+
+  # -- Set list of tolerations
+  tolerations: []
+
+  # -- Set affinity rules
+  affinity: {}
+
+  # -- Set topology spread constraints
+  topologySpreadConstraints: []
+
+  # -- Additional labels for manager Pods
+  podLabels: {}
+  # -- Additional annotations for manager Pods
+  podAnnotations: {}
+
+  # -- Environment variables
+  env: []
+
+  # -- Do not use Host Users (User Namespaces)
+  hostUsers: false
+
+  # Manager Arguments
+  args:
+    # -- Concurrent template reconciliations
+    workers: 1
+    # @schema type: number
+    # -- Kubernetes client QPS
+    kubeApiQPS: 50
+    # -- Kubernetes client burst
+    kubeApiBurst: 100
+    # -- Periodic reset interval for impersonation clients
+    cacheInvalidation: 1h
+    # -- Extra arguments to pass to the manager container
+    extra:
+      - "--leader-elect"
+
+serviceAccount:
+  # -- Specifies whether a service account should be created.
+  create: true
+  # -- Annotations to add to the service account.
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  # -- The name of the service account to use.
+  name: ""
+  # -- Image pull secrets for the service account.
+  imagePullSecrets: []
+
+# Admission Webhooks for the resource-permits controller
+webhooks:
+  # @schema type: [boolean, string]
+  # -- Specifies whether the admission webhooks are enabled
+  enabled: true
+  # -- Additional Labels for all webhooks
+  labels: {}
+  # -- Additional Annotations for all webhooks
+  annotations: {}
+  # @schema type: [boolean, string]
+  # -- When `crds.exclusive` is `true` the webhooks will be installed
+  exclusive: false
+
+  # Configure custom webhook service
+  service:
+    # -- The URL where the controller webhook services are running (Overwrites cluster scoped service definition)
+    url: ""
+    # -- CABundle for the webhook service
+    caBundle: ""
+    # -- Custom service name for the webhook service
+    name: ""
+    # -- Custom service namespace for the webhook service
+    namespace: ""
+    # -- (integer, null) Custom service port for the webhook service
+    port: # @schema type: [integer, string, null]
+
+  # Certificate configuration for the webhook service (by default requires cert-manager)
+  certificate:
+    # Define existing tls secret for the webhook service (make sure to disable .Values.webhooks.certificate.generate if you want to supply your own certificate)
+    secret:
+      # -- Name of the secret containing the TLS certificate for the webhook service
+      name: ""
+
+    generate:
+      # @schema type: [boolean, string]
+      # -- Enable cert-manager generated certificates for the webhook service
+      enabled: true
+      # -- Additional DNS Names to include in certificate
+      dnsNames: []
+      # -- Additional IP Addresses to include in certificate
+      ipAddresses: []
+      # -- Additional URIs to include in certificate
+      uris: []
+      # -- Duration of validity for the CA certificate (e.g. 2160h for 90 days)
+      duration: ""
+      # -- Renew the CA certificate before its expiration time (e.g. 360h for 15 days)
+      renewBefore: ""
+
+  # Admission hooks configuration. Selectors restrict admission, not reconciliation.
+  hooks:
+    resources:
+      failurePolicy: Fail
+      # @schema type: [integer, string]
+      timeoutSeconds: 10
+      matchPolicy: Exact
+      objectSelector: {}
+      namespaceSelector:
+        matchExpressions:
+          - key: capsule.clastix.io/tenant
+            operator: Exists
+      matchConditions:
+        - name: resource-permit-protection
+          expression: "[object, oldObject].exists(o, o != null && has(o.metadata.labels) && (('projectcapsule.dev/protected-by' in o.metadata.labels && o.metadata.labels['projectcapsule.dev/protected-by'] == 'resource-permit') || ('protection.projectcapsule.dev/resource-permit' in o.metadata.labels && o.metadata.labels['protection.projectcapsule.dev/resource-permit'] == 'true')))"
+      rules:
+        - apiGroups:
+            - "*"
+          apiVersions:
+            - "*"
+          operations:
+            - CREATE
+            - UPDATE
+            - DELETE
+          resources:
+            - "*"
+          scope: "*"
+
+    resourcepermits:
+      failurePolicy: Fail
+      # @schema type: [integer, string]
+      timeoutSeconds: 10
+      matchPolicy: Exact
+      objectSelector: {}
+      namespaceSelector:
+        matchExpressions:
+          - key: capsule.clastix.io/tenant
+            operator: Exists
+      matchConditions: []
+      rules:
+        - apiGroups:
+            - addons.projectcapsule.dev
+          apiVersions:
+            - v1beta2
+          operations:
+            - CREATE
+            - UPDATE
+            - DELETE
+          resources:
+            - resourcepermits
+            - resourcepermits/status
+          scope: Namespaced
+
+    resourcepermitsMutating:
+      failurePolicy: Fail
+      # @schema type: [integer, string]
+      timeoutSeconds: 10
+      matchPolicy: Exact
+      objectSelector: {}
+      namespaceSelector:
+        matchExpressions:
+          - key: capsule.clastix.io/tenant
+            operator: Exists
+      matchConditions: []
+      rules:
+        - apiGroups:
+            - addons.projectcapsule.dev
+          apiVersions:
+            - v1beta2
+          operations:
+            - CREATE
+            - UPDATE
+          resources:
+            - resourcepermits
+            - resourcepermits/status
+          scope: Namespaced
+
+    resourcepermittemplates:
+      failurePolicy: Fail
+      # @schema type: [integer, string]
+      timeoutSeconds: 10
+      matchPolicy: Exact
+      objectSelector: {}
+      namespaceSelector:
+        matchExpressions:
+          - key: capsule.clastix.io/tenant
+            operator: Exists
+      matchConditions: []
+      rules:
+        - apiGroups:
+            - addons.projectcapsule.dev
+          apiVersions:
+            - v1beta2
+          operations:
+            - CREATE
+            - UPDATE
+            - DELETE
+          resources:
+            - resourcepermittemplates
+          scope: Namespaced
+
+    globalresourcepermittemplates:
+      failurePolicy: Fail
+      # @schema type: [integer, string]
+      timeoutSeconds: 10
+      matchPolicy: Exact
+      objectSelector: {}
+      namespaceSelector: {}
+      matchConditions: []
+      rules:
+        - apiGroups:
+            - addons.projectcapsule.dev
+          apiVersions:
+            - v1beta2
+          operations:
+            - CREATE
+            - UPDATE
+            - DELETE
+          resources:
+            - globalresourcepermittemplates
+          scope: Cluster
+
+    serviceaccounts:
+      failurePolicy: Ignore
+      # @schema type: [integer, string]
+      timeoutSeconds: 10
+      matchPolicy: Exact
+      objectSelector: {}
+      namespaceSelector:
+        matchExpressions:
+          - key: capsule.clastix.io/tenant
+            operator: Exists
+      matchConditions: []
+      rules:
+        - apiGroups:
+            - ''
+          apiVersions:
+            - v1
+          operations:
+            - DELETE
+          resources:
+            - serviceaccounts
+          scope: Namespaced
+
 rbac:
+  # -- Create the controller ClusterRole and binding
   create: true
   requester:
+    # -- Create a role for requesting and reviewing permits; bind it explicitly
     create: true
+    # -- Optional requester role labels, such as aggregation into the Kubernetes admin role
     labels: {}
-    # Opt in to aggregation into tenant-owner roles, for example:
-    # rbac.authorization.k8s.io/aggregate-to-admin: "true"
+  # -- Additional controller permissions for fallback execution; prefer explicit template executors
   extraRules: []
-tls:
-  existingSecret: ""
-  caBundle: ""
-webhooks:
-  failurePolicy: Fail
-  referencesFailurePolicy: Ignore
-  timeoutSeconds: 10
+
+metrics:
+  serviceMonitor:
+    # -- Create a Prometheus Operator ServiceMonitor for the controller's HTTP metrics
+    enabled: false
+    # -- Additional ServiceMonitor labels
+    labels: {}
+    # -- Scrape interval
+    interval: 30s

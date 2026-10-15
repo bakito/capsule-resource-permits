@@ -1,6 +1,17 @@
 apiVersion: v2
 name: resource-permits
-description: ResourcePermit and template addon for Project Capsule
+description: Kubernetes approval workflows and managed resource lifecycles
 type: application
+kubeVersion: '>=1.30.0-0'
 version: 0.1.0
 appVersion: dev
+home: https://resource-permits.addons.projectcapsule.dev
+sources:
+  - https://github.com/projectcapsule/resource-permits
+icon: https://raw.githubusercontent.com/projectcapsule/capsule/581a8fe60e5a8a4c2861c32dd9854e1c2461777f/assets/logo/capsule.svg
+keywords: [kubernetes, capsule, approvals, rbac]
+maintainers:
+  - name: capsule-maintainers
+    email: cncf-capsule-maintainers@lists.cncf.io
+annotations:
+  artifacthub.io/license: Apache-2.0

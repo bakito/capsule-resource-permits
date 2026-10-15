@@ -1,0 +1,15 @@
+name: resource-permits
+displayName: Resource Permits
+description: Request, review, and manage Resource Permits and template catalogs in Headlamp.
+version: 0.0.0
+license: Apache-2.0
+homeURL: "https://resource-permits.addons.projectcapsule.dev"
+logoURL: 'https://raw.githubusercontent.com/projectcapsule/capsule/581a8fe60e5a8a4c2861c32dd9854e1c2461777f/assets/logo/capsule.svg'
+links:
+  - name: Documentation
+    url: https://resource-permits.addons.projectcapsule.dev
+  - name: Source
+    url: https://github.com/projectcapsule/resource-permits
+annotations:
+  headlamp/plugin/version-compat: '>=0.45.0'
+  headlamp/plugin/distro-compat: 'in-cluster,web'

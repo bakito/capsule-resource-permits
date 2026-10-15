@@ -1,0 +1,27 @@
+{
+  "name": "resource-permits-docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hugo documentation for Capsule Resource Permits",
+  "engines": {
+    "node": ">=24.13.0 <25"
+  },
+  "scripts": {
+    "build": "hugo --minify --panicOnWarning",
+    "dev": "hugo server --disableFastRender",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "@tabler/icons": "3.48.0",
+    "@thulite/doks-core": "1.9.4",
+    "@thulite/images": "3.3.4",
+    "@thulite/inline-svg": "1.2.2",
+    "@thulite/seo": "2.4.4",
+    "mermaid": "12.2.0",
+    "sass-embedded": "1.105.1"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  }
+}

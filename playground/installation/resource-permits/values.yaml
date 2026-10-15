@@ -1,0 +1,22 @@
+# Standalone playground: admission covers namespaces without tenant labels.
+webhooks:
+  hooks:
+    resources:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermits:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermitsMutating:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermittemplates:
+      namespaceSelector:
+        matchExpressions: []
+    serviceaccounts:
+      namespaceSelector:
+        matchExpressions: []
+rbac:
+  requester:
+    labels:
+      rbac.authorization.k8s.io/aggregate-to-admin: 'true'

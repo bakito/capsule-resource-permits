@@ -56,6 +56,19 @@ func (brt *GlobalResourcePermitTemplate) TemplateData() ResourcePermitTemplateDa
 // admission and template readiness reconciliation. Rendering and context loading
 // depend on request parameters and are checked when a ResourcePermit is submitted.
 func ValidateResourcePermitTemplate(brt ResourcePermitTemplateSource) error {
+	switch template := brt.(type) {
+	case *ResourcePermitTemplate:
+		if template == nil || template.Spec.Impersonation == nil || template.Spec.Impersonation.Name == "" {
+			return fmt.Errorf("spec.impersonation.name is required")
+		}
+	case *GlobalResourcePermitTemplate:
+		if template == nil || template.Spec.Impersonation == nil || template.Spec.Impersonation.Name == "" || template.Spec.Impersonation.Namespace == "" {
+			return fmt.Errorf("spec.impersonation.name and spec.impersonation.namespace are required")
+		}
+	default:
+		return fmt.Errorf("unsupported template type %T", brt)
+	}
+
 	templateData := brt.TemplateData()
 
 	if err := brt.ValidateApprovalConditions(); err != nil {

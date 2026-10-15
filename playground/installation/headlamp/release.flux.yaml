@@ -1,0 +1,51 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: headlamp-charts
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: https://kubernetes-sigs.github.io/headlamp/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: headlamp
+  namespace: flux-system
+spec:
+  interval: 10m
+  timeout: 3m
+  releaseName: headlamp
+  targetNamespace: kube-system
+  chart:
+    spec:
+      chart: headlamp
+      version: '0.45.0'
+      sourceRef:
+        kind: HelmRepository
+        name: headlamp-charts
+      interval: 24h
+  install:
+    remediation:
+      retries: 2
+  upgrade:
+    remediation:
+      retries: 2
+  driftDetection:
+    mode: enabled
+  values:
+    fullnameOverride: headlamp
+    config:
+      pluginsDir: /headlamp/plugins
+    clusterRoleBinding:
+      create: false
+    serviceAccount:
+      name: headlamp
+    volumes:
+      - name: local-plugin
+        configMap:
+          name: resource-permits-headlamp-plugin
+    volumeMounts:
+      - name: local-plugin
+        mountPath: /headlamp/plugins/resource-permits
+        readOnly: true

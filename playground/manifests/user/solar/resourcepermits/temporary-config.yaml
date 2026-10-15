@@ -1,0 +1,13 @@
+apiVersion: addons.projectcapsule.dev/v1beta2
+kind: ResourcePermit
+metadata:
+  name: investigate-checkout
+  namespace: solar-system
+spec:
+  template:
+    kind: ResourcePermitTemplate
+    name: temporary-config
+  params:
+    message: Checkout investigation in progress
+  reason: Investigate checkout failures for INC-1042
+  duration: 20m

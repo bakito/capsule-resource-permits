@@ -16,6 +16,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/projectcapsule/capsule/pkg/api/meta"
 	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
 
 	"github.com/projectcapsule/resource-permits/internal/webhook/test"
@@ -33,14 +34,14 @@ func TestResourcePermitTemplateValidationHandler(t *testing.T) {
 	}{
 		{
 			name: "valid template",
-			template: &permitsv1beta2.ResourcePermitTemplate{Spec: permitsv1beta2.ResourcePermitTemplateSpec{
+			template: &permitsv1beta2.ResourcePermitTemplate{Spec: permitsv1beta2.ResourcePermitTemplateSpec{Impersonation: &meta.LocalRFC1123ObjectReference{Name: "runner"},
 				Approvals: resourcepermit.ApprovalSpec{Conditions: []string{`requestor.name == "alice"`}},
 				Resources: []apiruntime.ResourceTemplate{{Targets: []runtime.RawExtension{{Object: &corev1.ConfigMap{}}}}},
 			}},
 		},
 		{
 			name: "invalid condition",
-			template: &permitsv1beta2.ResourcePermitTemplate{Spec: permitsv1beta2.ResourcePermitTemplateSpec{
+			template: &permitsv1beta2.ResourcePermitTemplate{Spec: permitsv1beta2.ResourcePermitTemplateSpec{Impersonation: &meta.LocalRFC1123ObjectReference{Name: "runner"},
 				Approvals: resourcepermit.ApprovalSpec{Conditions: []string{`unknown.name == "alice"`}},
 				Resources: []apiruntime.ResourceTemplate{{Targets: []runtime.RawExtension{{Object: &corev1.ConfigMap{}}}}},
 			}},

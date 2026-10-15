@@ -208,10 +208,10 @@ spec:
                 type: string
               impersonation:
                 description: |-
-                  Impersonation identifies the ServiceAccount used for context loading and
-                  every managed-resource action performed for requests using this template.
-                  When omitted, the global default ServiceAccount from CapsuleConfiguration
-                  is used. If neither is configured, Capsule uses its controller identity.
+                  Impersonation identifies the required ServiceAccount used for context loading
+                  and every managed-resource action, including cleanup. Namespaced templates
+                  use a ServiceAccount in their own namespace; global templates specify both
+                  name and namespace. There is no default execution identity.
                 properties:
                   name:
                     description: Name of the referent.
@@ -366,6 +366,7 @@ spec:
                 minItems: 1
                 type: array
             required:
+            - impersonation
             - resources
             type: object
           status:
@@ -443,6 +444,8 @@ spec:
                 format: int64
                 type: integer
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

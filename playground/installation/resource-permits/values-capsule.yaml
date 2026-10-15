@@ -1,0 +1,28 @@
+# Capsule integration test fixture. Standalone admission uses its own explicit namespace override.
+# Reuse the existing Capsule identity to exercise tenant admission with the
+# same authorization as older addon installations.
+serviceAccount:
+  create: false
+  name: capsule
+rbac:
+  requester:
+    labels:
+      rbac.authorization.k8s.io/aggregate-to-admin: "true"
+
+webhooks:
+  hooks:
+    resources:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermits:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermitsMutating:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermittemplates:
+      namespaceSelector:
+        matchExpressions: []
+    serviceaccounts:
+      namespaceSelector:
+        matchExpressions: []

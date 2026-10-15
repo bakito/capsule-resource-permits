@@ -6,11 +6,13 @@ package e2e
 import (
 	"context"
 
-	permitsv1beta2 "github.com/projectcapsule/resource-permits/api/v1beta2"
-	permitmeta "github.com/projectcapsule/resource-permits/pkg/api/meta"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
+	apimeta "github.com/projectcapsule/capsule/pkg/api/meta"
+	capsulerbac "github.com/projectcapsule/capsule/pkg/api/rbac"
+	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
+	tpl "github.com/projectcapsule/capsule/pkg/template"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -19,24 +21,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
-	apimeta "github.com/projectcapsule/capsule/pkg/api/meta"
-	capsulerbac "github.com/projectcapsule/capsule/pkg/api/rbac"
-	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
-	tpl "github.com/projectcapsule/capsule/pkg/template"
-
+	permitsv1beta2 "github.com/projectcapsule/resource-permits/api/v1beta2"
+	permitmeta "github.com/projectcapsule/resource-permits/pkg/api/meta"
 	"github.com/projectcapsule/resource-permits/pkg/api/resourcepermit"
 )
 
 const (
-	resourcePermitImpersonationTemplateName  = "e2e-resourcepermit-impersonation"
-	resourcePermitImpersonationTargetName    = "e2e-resourcepermit-impersonation-target"
-	resourcePermitImpersonationContextName   = "e2e-resourcepermit-impersonation-context"
-	resourcePermitTemplateServiceAccount     = "e2e-resourcepermit-template-runner"
-	resourcePermitDefaultServiceAccount      = "e2e-resourcepermit-default-runner"
-	resourcePermitLocalDefaultServiceAccount = "e2e-resourcepermit-local-default-runner"
-	resourcePermitReadOnlyServiceAccount     = "e2e-resourcepermit-readonly-runner"
-	resourcePermitRetryRequester             = "e2e-resourcepermit-retry-requester"
+	resourcePermitImpersonationTemplateName = "e2e-resourcepermit-impersonation"
+	resourcePermitImpersonationTargetName   = "e2e-resourcepermit-impersonation-target"
+	resourcePermitImpersonationContextName  = "e2e-resourcepermit-impersonation-context"
+	resourcePermitTemplateServiceAccount    = "e2e-resourcepermit-template-runner"
+	resourcePermitLocalServiceAccount       = "e2e-resourcepermit-local-runner"
+	resourcePermitReadOnlyServiceAccount    = "e2e-resourcepermit-readonly-runner"
+	resourcePermitRetryRequester            = "e2e-resourcepermit-retry-requester"
 )
 
 var _ = Describe(
@@ -60,7 +57,8 @@ var _ = Describe(
 			brt = &permitsv1beta2.GlobalResourcePermitTemplate{
 				Name: resourcePermitImpersonationTemplateName,
 				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
-					Approvals: resourcepermit.ApprovalSpec{Auto: true},
+					Impersonation: resourcePermitServiceAccountReference(ControllerNamespace, ControllerServiceAccount),
+					Approvals:     resourcepermit.ApprovalSpec{Auto: true},
 					Resources: []apiruntime.ResourceTemplate{{Template: `
 ---
 apiVersion: v1
@@ -198,7 +196,8 @@ data:
 				By("protecting the template ServiceAccount copied to ResourcePermit status")
 				executionServiceAccount := &corev1.ServiceAccount{
 					Name:      resourcePermitTemplateServiceAccount,
-					Namespace: serviceAccountNamespace}
+					Namespace: serviceAccountNamespace,
+				}
 				Eventually(func(g Gomega) {
 					err := k8sClient.Delete(ctx, executionServiceAccount, client.DryRunAll)
 					g.Expect(apierrors.IsForbidden(err)).To(BeTrue(), "expected protection of the active execution identity: %v", err)
@@ -217,112 +216,6 @@ data:
 
 					return apierrors.IsNotFound(err)
 				}, defaultTimeoutInterval, defaultPollInterval).Should(BeTrue())
-			})
-		})
-
-		Context("without a template ServiceAccount", func() {
-			It("records and uses the Capsule controller ServiceAccount when no default is configured", func() {
-				original := &capsulev1beta2.CapsuleConfiguration{}
-				Expect(k8sClient.Get(ctx, client.ObjectKey{Name: defaultConfigurationName}, original)).To(Succeed())
-				originalImpersonation := original.Spec.Impersonation
-				DeferCleanup(func() {
-					ModifyCapsuleConfigurationOpts(func(configuration *capsulev1beta2.CapsuleConfiguration) {
-						configuration.Spec.Impersonation = originalImpersonation
-					})
-				})
-
-				ModifyCapsuleConfigurationOpts(func(configuration *capsulev1beta2.CapsuleConfiguration) {
-					configuration.Spec.Impersonation.GlobalDefaultServiceAccount = ""
-					configuration.Spec.Impersonation.GlobalDefaultServiceAccountNamespace = ""
-				})
-
-				br := newImpersonatedResourcePermit(namespace.Name, "e2e-resourcepermit-controller-identity", brt.Name)
-				DeferCleanup(func() {
-					expireResourcePermitForCleanup(ctx, br)
-					EventuallyDeletion(br)
-				})
-				EventuallyCreation(func() error { return k8sClient.Create(ctx, br) }).Should(Succeed())
-
-				expectedUsername := serviceAccountUsername(
-					ControllerNamespace,
-					ControllerServiceAccount,
-				)
-				cm := resourcePermitManagedConfigMap(br.Namespace)
-				Eventually(func(g Gomega) {
-					current := &permitsv1beta2.ResourcePermit{}
-					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(br), current)).To(Succeed())
-					expectResourcePermitServiceAccount(
-						g,
-						current,
-						ControllerNamespace,
-						ControllerServiceAccount,
-					)
-
-					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cm), cm)).To(Succeed())
-					g.Expect(cm.Annotations).To(HaveKeyWithValue(
-						permitmeta.ResourcePermitServiceAccountAnnotation,
-						expectedUsername,
-					))
-				}, defaultTimeoutInterval, defaultPollInterval).Should(Succeed())
-
-				expireActiveResourcePermit(ctx, br)
-				expectResourcePermitAndConfigMapDeleted(ctx, br, cm)
-			})
-
-			It("uses the global default ServiceAccount from CapsuleConfiguration", func() {
-				grantResourcePermitServiceAccount(
-					serviceAccountNamespace,
-					resourcePermitDefaultServiceAccount,
-					namespace.Name,
-					[]string{"get", "list", "watch", "create", "update", "patch", "delete"},
-				)
-
-				original := &capsulev1beta2.CapsuleConfiguration{}
-				Expect(k8sClient.Get(ctx, client.ObjectKey{Name: defaultConfigurationName}, original)).To(Succeed())
-				originalImpersonation := original.Spec.Impersonation
-				DeferCleanup(func() {
-					ModifyCapsuleConfigurationOpts(func(configuration *capsulev1beta2.CapsuleConfiguration) {
-						configuration.Spec.Impersonation = originalImpersonation
-					})
-				})
-
-				ModifyCapsuleConfigurationOpts(func(configuration *capsulev1beta2.CapsuleConfiguration) {
-					configuration.Spec.Impersonation.GlobalDefaultServiceAccount =
-						apimeta.RFC1123Name(resourcePermitDefaultServiceAccount)
-					configuration.Spec.Impersonation.GlobalDefaultServiceAccountNamespace =
-						apimeta.RFC1123SubdomainName(serviceAccountNamespace)
-				})
-
-				br := newImpersonatedResourcePermit(namespace.Name, "e2e-resourcepermit-default-impersonation", brt.Name)
-				DeferCleanup(func() {
-					expireResourcePermitForCleanup(ctx, br)
-					EventuallyDeletion(br)
-				})
-				EventuallyCreation(func() error { return k8sClient.Create(ctx, br) }).Should(Succeed())
-
-				expectedUsername := serviceAccountUsername(
-					serviceAccountNamespace,
-					resourcePermitDefaultServiceAccount,
-				)
-				cm := resourcePermitManagedConfigMap(br.Namespace)
-				Eventually(func(g Gomega) {
-					current := &permitsv1beta2.ResourcePermit{}
-					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(br), current)).To(Succeed())
-					expectResourcePermitServiceAccount(
-						g,
-						current,
-						serviceAccountNamespace,
-						resourcePermitDefaultServiceAccount,
-					)
-					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cm), cm)).To(Succeed())
-					g.Expect(cm.Annotations).To(HaveKeyWithValue(
-						permitmeta.ResourcePermitServiceAccountAnnotation,
-						expectedUsername,
-					))
-				}, defaultTimeoutInterval, defaultPollInterval).Should(Succeed())
-
-				expireActiveResourcePermit(ctx, br)
-				expectResourcePermitAndConfigMapDeleted(ctx, br, cm)
 			})
 		})
 
@@ -450,7 +343,8 @@ data:
 					By("protecting the resolved ServiceAccount after successful preflight")
 					serviceAccount := &corev1.ServiceAccount{
 						Name:      resourcePermitReadOnlyServiceAccount,
-						Namespace: serviceAccountNamespace}
+						Namespace: serviceAccountNamespace,
+					}
 					Eventually(func(g Gomega) {
 						err := k8sClient.Delete(ctx, serviceAccount, client.DryRunAll)
 						g.Expect(apierrors.IsForbidden(err)).To(BeTrue(), "expected admission denial, got: %v", err)
@@ -564,30 +458,18 @@ var _ = Describe(
 			ctx = context.Background()
 			namespace = createResourcePermitTestNamespace(ctx)
 
-			original := &capsulev1beta2.CapsuleConfiguration{}
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: defaultConfigurationName}, original)).To(Succeed())
-			originalImpersonation := original.Spec.Impersonation
-			DeferCleanup(func() {
-				ModifyCapsuleConfigurationOpts(func(configuration *capsulev1beta2.CapsuleConfiguration) {
-					configuration.Spec.Impersonation = originalImpersonation
-				})
-			})
-
 			grantResourcePermitServiceAccount(
 				namespace.Name,
-				resourcePermitLocalDefaultServiceAccount,
+				resourcePermitLocalServiceAccount,
 				namespace.Name,
 				[]string{"get", "list", "watch", "create", "update", "patch", "delete"},
 			)
-			ModifyCapsuleConfigurationOpts(func(configuration *capsulev1beta2.CapsuleConfiguration) {
-				configuration.Spec.Impersonation.TenantDefaultServiceAccount =
-					apimeta.RFC1123Name(resourcePermitLocalDefaultServiceAccount)
-			})
 
 			brt = &permitsv1beta2.ResourcePermitTemplate{
 				Name: "e2e-resourcepermit-local-template", Namespace: namespace.Name,
 				Spec: permitsv1beta2.ResourcePermitTemplateSpec{
-					Approvals: resourcepermit.ApprovalSpec{Auto: true},
+					Impersonation: &apimeta.LocalRFC1123ObjectReference{Name: resourcePermitLocalServiceAccount},
+					Approvals:     resourcepermit.ApprovalSpec{Auto: true},
 					Resources: []apiruntime.ResourceTemplate{{Template: `
 ---
 apiVersion: v1
@@ -603,9 +485,9 @@ data:
 			DeferCleanup(func() { EventuallyDeletion(brt) })
 		})
 
-		It("uses the namespace-local configured default and records template provenance", func() {
+		It("uses the explicit namespace-local ServiceAccount and records template provenance", func() {
 			br := &permitsv1beta2.ResourcePermit{
-				Name: "e2e-resourcepermit-local-default", Namespace: namespace.Name,
+				Name: "e2e-resourcepermit-local", Namespace: namespace.Name,
 				Spec: permitsv1beta2.ResourcePermitSpec{Template: permitsv1beta2.ResourcePermitTemplateReference{
 					Kind: permitsv1beta2.ResourcePermitTemplateKind,
 					Name: brt.Name,
@@ -625,7 +507,7 @@ data:
 					g,
 					current,
 					namespace.Name,
-					resourcePermitLocalDefaultServiceAccount,
+					resourcePermitLocalServiceAccount,
 				)
 				g.Expect(current.Status.Request.Template).NotTo(BeNil())
 				g.Expect(current.Status.Request.Template.Kind).To(Equal(permitsv1beta2.ResourcePermitTemplateKind))
@@ -636,7 +518,7 @@ data:
 				g.Expect(cm.Data).To(HaveKeyWithValue("source", "namespaced-template"))
 				g.Expect(cm.Annotations).To(HaveKeyWithValue(
 					permitmeta.ResourcePermitServiceAccountAnnotation,
-					serviceAccountUsername(namespace.Name, resourcePermitLocalDefaultServiceAccount),
+					serviceAccountUsername(namespace.Name, resourcePermitLocalServiceAccount),
 				))
 			}, defaultTimeoutInterval, defaultPollInterval).Should(Succeed())
 

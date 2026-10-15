@@ -427,8 +427,8 @@ spec:
                   impersonation:
                     description: |-
                       Impersonation is the resolved identity used for template context loading
-                      and managed-resource actions. Capsule records its controller ServiceAccount
-                      when no impersonation is configured.
+                      and managed-resource actions. It is copied from the template before preflight
+                      and retained for the request's lifecycle, including cleanup.
                     properties:
                       name:
                         description: Name of the referent.

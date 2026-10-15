@@ -1,0 +1,31 @@
+# Exercise the same webhook templating contract as Change Windows.
+webhooks:
+  enabled: '{{ eq .Release.Service "Helm" }}'
+  exclusive: '{{ eq .Release.Service "Helm" }}'
+  labels:
+    example.com/release: '{{ .Release.Name }}'
+  annotations:
+    'example.com/{{ .Release.Name }}': 'quoted "value"'
+  certificate:
+    generate:
+      enabled: '{{ eq .Release.Service "Helm" }}'
+    secret:
+      name: '{{ .Release.Name }}-custom-tls'
+  service:
+    port: '{{ add 400 43 }}'
+  hooks:
+    resources:
+      failurePolicy: '{{ print "Fail" }}'
+      timeoutSeconds: '{{ add 2 3 }}'
+      namespaceSelector:
+        matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: NotIn
+            values: ['{{ .Release.Namespace }}']
+    resourcepermitsMutating:
+      timeoutSeconds: '{{ add 3 4 }}'
+      matchConditions:
+        - name: exclude-controller
+          expression: 'request.namespace != {{ .Release.Namespace | quote }}'
+    serviceaccounts:
+      timeoutSeconds: '{{ add 1 2 }}'

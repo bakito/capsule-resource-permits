@@ -179,8 +179,8 @@ type ResourcePermitStatusRequest struct {
 	Template *ResolvedResourcePermitTemplateReference `json:"template,omitempty"`
 
 	// Impersonation is the resolved identity used for template context loading
-	// and managed-resource actions. Capsule records its controller ServiceAccount
-	// when no impersonation is configured.
+	// and managed-resource actions. It is copied from the template before preflight
+	// and retained for the request's lifecycle, including cleanup.
 	// +optional
 	Impersonation *meta.NamespacedRFC1123ObjectReferenceWithNamespace `json:"impersonation,omitempty"`
 

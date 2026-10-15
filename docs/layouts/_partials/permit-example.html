@@ -1,0 +1,60 @@
+{{- $page := .page -}}
+{{- $example := .example -}}
+{{- $source := resources.Get (printf "examples/%s" $example.source) -}}
+{{- if not $source -}}{{- errorf "Missing homepage example %s" $example.source -}}{{- end -}}
+{{- $segments := slice -}}
+{{- $lines := slice -}}
+{{- $active := dict -}}
+{{- $seen := slice -}}
+{{- range split (strings.TrimSuffix "\n" $source.Content) "\n" -}}
+  {{- $line := . -}}
+  {{- range $example.sections -}}
+    {{- if hasPrefix $line (printf "  %s:" .key) -}}
+      {{- if in $seen .key -}}{{- errorf "Repeated homepage example field %s.%s" $example.id .key -}}{{- end -}}
+      {{- $segments = $segments | append (dict "lines" $lines "section" $active) -}}
+      {{- $lines = slice -}}
+      {{- $active = . -}}
+      {{- $seen = $seen | append .key -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $lines = $lines | append $line -}}
+{{- end -}}
+{{- $segments = $segments | append (dict "lines" $lines "section" $active) -}}
+{{- if ne (len $seen) (len $example.sections) -}}{{- errorf "Homepage annotations do not match %s" $example.source -}}{{- end -}}
+<section class="permit-example" aria-labelledby="example-{{ $example.id }}-title" data-permit-example="{{ $example.id }}">
+  <h3 id="example-{{ $example.id }}-title" class="h4">{{ $example.title }}</h3>
+  <p>{{ $example.description }}</p>
+  <div class="permit-example__toolbar">
+    <strong>{{ $example.kind }}</strong>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-permit-copy hidden>Copy YAML</button>
+      <a class="btn btn-primary btn-sm" href="{{ printf "examples/%s" $example.source | relURL }}" download>Download YAML</a>
+    </div>
+  </div>
+  <div class="permit-example__body">
+    <pre class="permit-example__yaml" tabindex="0" aria-label="Complete {{ $example.kind }} YAML"><code data-permit-source>{{- range $segments -}}
+      {{- $chunk := printf "%s\n" (delimit .lines "\n") -}}
+      {{- with .section -}}
+        <a class="permit-example__block" href="{{ relref $page .guide }}" data-permit-part="{{ .key }}" aria-controls="{{ $example.id }}-help-{{ .key }}" aria-label="{{ .path }}: {{ .title }}">{{ partial "permit-example/code.html" $chunk }}</a>
+      {{- else -}}
+        {{- partial "permit-example/code.html" $chunk -}}
+      {{- end -}}
+    {{- end -}}</code></pre>
+    <aside class="permit-example__help" aria-label="{{ $example.kind }} configuration" aria-live="polite">
+      {{ range $index, $section := $example.sections }}
+      <div id="{{ $example.id }}-help-{{ .key }}" data-permit-help="{{ .key }}" {{ if ne $index 0 }}hidden{{ end }}>
+        <span class="permit-example__step">{{ add $index 1 }} / {{ len $example.sections }}</span>
+        <p class="permit-example__path"><code>{{ .path }}</code></p>
+        <h4 class="h5">{{ .title }}</h4>
+        <p>{{ .description }}</p>
+        <div class="permit-example__links">
+          <a href="{{ relref $page .guide }}">Read the guide →</a>
+          <a href="{{ relref $page .reference }}">API reference →</a>
+        </div>
+      </div>
+      {{ end }}
+      <p class="permit-example__setup"><a href="{{ relref $page "/docs/examples/temporary-config" }}">Follow the walkthrough →</a><br>Set up the namespace, executor, and requester/reviewer permissions before applying.</p>
+    </aside>
+  </div>
+  <p class="permit-example__status small text-muted" role="status" data-permit-copy-status></p>
+</section>

@@ -1,0 +1,14 @@
+certManager:
+  generateCertificates: false
+tls:
+  enableController: true
+manager:
+  options:
+    workers: 4
+    rbac:
+      administrationClusterRoles: [cluster-admin]
+rbac:
+  resources:
+    create: true
+    labels:
+      rbac.authorization.k8s.io/aggregate-to-admin: "true"

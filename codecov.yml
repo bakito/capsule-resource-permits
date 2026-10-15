@@ -1,0 +1,5 @@
+ignore:
+  # Generated API methods and MockGen output.
+  - "**/zz_generated.*.go"
+  - "internal/mocks/**"
+  - "internal/webhook/test/**"

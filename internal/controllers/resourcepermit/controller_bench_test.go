@@ -23,6 +23,7 @@ import (
 	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
 	"github.com/projectcapsule/capsule/pkg/api/meta"
 	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
+	"github.com/projectcapsule/capsule/pkg/runtime/configuration"
 	"github.com/projectcapsule/capsule/pkg/runtime/selectors"
 	"github.com/projectcapsule/capsule/pkg/runtime/ssa"
 
@@ -88,6 +89,8 @@ func BenchmarkControllerPermitTemplate(b *testing.B) {
 }
 
 func BenchmarkControllerResourcePermit(b *testing.B) {
+	b.Setenv(configuration.EnvironmentServiceaccountName, "runner")
+	b.Setenv(configuration.EnvironmentControllerNamespace, "team-a")
 	for _, mode := range []string{"preflight", "requested", "active"} {
 		for _, count := range []int{1, 32} {
 			b.Run(fmt.Sprintf("%s/resources=%d", mode, count), func(b *testing.B) {
@@ -97,7 +100,7 @@ func BenchmarkControllerResourcePermit(b *testing.B) {
 						b.Fatal(err)
 					}
 				}
-				template := &permitsv1beta2.ResourcePermitTemplate{Name: "template", Namespace: "team-a"}
+				template := &permitsv1beta2.ResourcePermitTemplate{Name: "template", Namespace: "team-a", Spec: permitsv1beta2.ResourcePermitTemplateSpec{Impersonation: &meta.LocalRFC1123ObjectReference{Name: "runner"}}}
 				for i := range count {
 					template.Spec.Resources = append(template.Spec.Resources, apiruntime.ResourceTemplate{Template: fmt.Sprintf("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: config-%d\n", i)})
 				}

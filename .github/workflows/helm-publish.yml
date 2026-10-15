@@ -1,0 +1,105 @@
+name: Publish charts
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  publish-helm:
+    # Skip this Release on forks
+    if: github.repository_owner == 'projectcapsule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/setup
+      - name: Validate release version
+        id: extract_version
+        run: |
+          : "${GITHUB_REF_NAME:?GITHUB_REF_NAME is required}"
+          version=${GITHUB_REF_NAME#v}
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo 'Release tag must be vMAJOR.MINOR.PATCH with an optional prerelease' >&2
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
+      - name: Package chart
+        run: devbox run -- task helm:package
+        env:
+          VERSION: ${{ steps.extract_version.outputs.version }}
+      - name: Publish Helm chart
+        uses: stefanprodan/helm-gh-pages@0ad2bb377311d61ac04ad9eb6f252fb68e207260 # v1.7.0
+        with:
+          token: "${{ secrets.HELM_CHARTS_PUSH_TOKEN }}"
+          linting: off
+          chart_version: ${{ steps.extract_version.outputs.version }}
+          app_version: ${{ steps.extract_version.outputs.version }}
+          charts_dir: charts
+          charts_url: https://${{ github.repository_owner }}.github.io/charts
+          owner: ${{ github.repository_owner }}
+          repository: charts
+          branch: gh-pages
+          commit_username: ${{ github.actor }}
+  publish-helm-oci:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    outputs:
+      image: ${{ steps.chart.outputs.image }}
+      digest: ${{ steps.chart.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/setup
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - id: version
+        run: |
+          : "${GITHUB_REF_NAME:?GITHUB_REF_NAME is required}"
+          version=${GITHUB_REF_NAME#v}
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo 'Release tag must be vMAJOR.MINOR.PATCH with an optional prerelease' >&2
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
+      - name: Authenticate registry
+        # Helm and Cosign read separate credential stores; authenticate both.
+        run: devbox run -- task helm:login registry:login
+        env:
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      - name: Package and publish chart
+        id: chart
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CHART_REGISTRY: oci://ghcr.io/${{ github.repository_owner }}/charts
+        run: |
+          ref=$(devbox run -- task helm:push)
+          if [[ ! "$ref" =~ ^[^[:space:]@]+@sha256:[a-f0-9]{64}$ ]]; then
+            echo 'Expected one immutable published image reference' >&2
+            exit 1
+          fi
+          image=${ref%@*}
+          printf 'image=%s\ndigest=%s\n' "$image" "${ref##*@}" >> "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
+      - name: Sign chart
+        run: devbox run -- task image:sign
+        env:
+          IMAGE_REF: ${{ steps.chart.outputs.image }}@${{ steps.chart.outputs.digest }}
+  helm-provenance:
+    needs: publish-helm-oci
+    permissions:
+      id-token: write
+      packages: write
+      actions: read
+    # SLSA requires a full release tag; check-actions.yml allows this exception.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      # Private repositories must explicitly opt in to publishing metadata to Rekor.
+      private-repository: ${{ vars.SLSA_PUBLIC_PROVENANCE == 'true' }}
+      image: ${{ needs.publish-helm-oci.outputs.image }}
+      digest: ${{ needs.publish-helm-oci.outputs.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}

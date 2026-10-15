@@ -379,7 +379,7 @@ func TestResourcePermitMutationHandlerAppliesExpirationFromStoredStatus(t *testi
 		Object:    mutated,
 		OldObject: oldBr,
 	}
-	validationResponse := ResourcePermitValidationHandler(log.Log.WithName("test"), nil).OnUpdate(
+	validationResponse := ResourcePermitValidationHandler(log.Log.WithName("test")).OnUpdate(
 		nil,
 		nil,
 		validationDecoder,

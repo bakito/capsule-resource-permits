@@ -1,0 +1,19 @@
+<footer class="footer text-muted">
+  <div class="container-{{ site.Params.doks.containerBreakpoint | default "lg" }}">
+    <div class="footer-content">
+      <div>
+        {{ with .Site.Menus.footer -}}
+          <ul class="list-inline">
+            {{ range . -}}
+              <li class="list-inline-item"><a class="text-muted" href="{{ .URL | relURL }}">{{ .Name }}</a></li>
+            {{- end }}
+          </ul>
+        {{- end }}
+        <p class="mb-0">{{ site.Params.footer | safeHTML }}</p>
+      </div>
+      <a class="footer-cncf" href="https://www.cncf.io/">
+        <img src="{{ "images/cncf.svg" | relURL }}" width="240" height="46" alt="Cloud Native Computing Foundation" loading="lazy">
+      </a>
+    </div>
+  </div>
+</footer>

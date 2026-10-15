@@ -101,6 +101,17 @@ func exerciseMixedProtection(global bool, tenantName, baseNamespace, targetNames
 	permit := &permitsv1beta2.ResourcePermit{Name: name, Namespace: targetNamespace, Spec: permitsv1beta2.ResourcePermitSpec{Template: permitsv1beta2.ResourcePermitTemplateReference{Kind: permitsv1beta2.GlobalResourcePermitTemplateKind, Name: name}}}
 	Expect(actor.Create(ctx, permit)).To(Succeed())
 	DeferCleanup(func() { cleanupLifecycleResourcePermit(ctx, permit) })
+	// Resolve the deliberately overlapping fixture explicitly. The addon must
+	// never discard unknown replication ownership on its own during cleanup.
+	executor := impersonationClient(serviceAccountUsername(sa.Namespace.String(), sa.Name.String()), serviceAccountGroups(sa.Namespace.String()))
+	resolveSharedTarget := func() {
+		ignoreNotFound(k8sClient.Delete(ctx, parent))
+		Eventually(func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(parent), parent))
+		}, defaultTimeoutInterval, defaultPollInterval).Should(BeTrue())
+		ignoreNotFound(executor.Delete(ctx, seed))
+	}
+	DeferCleanup(resolveSharedTarget)
 	permit = waitForResourcePermitPhase(ctx, permit, permitsv1beta2.ResourcePermitPhaseActive)
 	// Activation must record the existing permit lifecycle state.
 	Expect(permit.Status.ProcessedItems).To(HaveLen(1))
@@ -127,8 +138,19 @@ func exerciseMixedProtection(global bool, tenantName, baseNamespace, targetNames
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(seed), cm)).To(Succeed())
 		Expect(cm.Labels).To(HaveKeyWithValue(permitmeta.ResourcePermitProtectionLabel, meta.ValueTrue))
 		Expect(cm.Annotations).To(HaveKeyWithValue(permitmeta.ResourcePermitServiceAccountAnnotation, serviceAccountUsername(sa.Namespace.String(), sa.Name.String())))
-		Expect(actor.Patch(ctx, cm, client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"labels":null,"annotations":null}}`)))).To(MatchError(ContainSubstring("protected by a ResourcePermit")))
-		Expect(actor.Delete(ctx, cm, client.DryRunAll)).To(MatchError(ContainSubstring("protected by a ResourcePermit")))
+		before := cm.DeepCopy()
+		denial := Or(ContainSubstring("protected by a ResourcePermit"))
+		if cm.Labels[meta.ReplicationProtectionLabel] == meta.ValueTrue {
+			// Independent validating webhooks have no guaranteed response order.
+			denial = Or(denial, ContainSubstring("capsule replication "+parent.GetName()))
+		}
+		Expect(actor.Patch(ctx, cm, client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"labels":null,"annotations":null}}`)))).To(MatchError(denial))
+		Expect(actor.Delete(ctx, cm, client.DryRunAll)).To(MatchError(denial))
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(seed), cm)).To(Succeed())
+		Expect(cm.Labels).To(Equal(before.Labels))
+		Expect(cm.Annotations).To(Equal(before.Annotations))
+		Expect(cm.Data).To(Equal(before.Data))
+		Expect(cm.DeletionTimestamp.IsZero()).To(BeTrue())
 	}
 	Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(seed), cm)).To(Succeed())
 	Expect(cm.Labels).To(HaveKeyWithValue(meta.ProtectedByCapsuleLabel, permitmeta.ValueControllerResourcePermit))
@@ -137,36 +159,35 @@ func exerciseMixedProtection(global bool, tenantName, baseNamespace, targetNames
 	assertPermitProtected()
 	Expect(cm.Labels).NotTo(HaveKey(meta.ReplicationProtectionLabel))
 	setProtection(true, false)
-	if global {
-		By("retaining replication protection after the permit expires while replication is cordoned")
-		setProtection(true, true)
-		expireActiveResourcePermit(ctx, permit)
-		Eventually(func() bool {
-			return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(permit), permit))
-		}, defaultTimeoutInterval, defaultPollInterval).Should(BeTrue())
-		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(seed), cm)).To(Succeed())
-		Expect(cm.Labels).To(HaveKeyWithValue(meta.ReplicationProtectionLabel, meta.ValueTrue))
-		Expect(cm.Labels).NotTo(HaveKey(permitmeta.ResourcePermitProtectionLabel))
-		Expect(cm.Annotations).NotTo(HaveKey(permitmeta.ResourcePermitServiceAccountAnnotation))
-		Expect(actor.Patch(ctx, cm, client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"labels":null}}`)))).To(MatchError(ContainSubstring("is managed by a")))
-		Expect(actor.Delete(ctx, cm, client.DryRunAll)).To(MatchError(ContainSubstring("is managed by a")))
-	}
-	By("orphaning the replication without clearing any surviving permit protection")
+	By("preserving both controllers' protection when replication ownership cannot be resolved")
+	setProtection(true, true)
+	expireActiveResourcePermit(ctx, permit)
+	Eventually(func(g Gomega) {
+		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(permit), permit)).To(Succeed())
+		g.Expect(permit.Status.Phase).To(Equal(permitsv1beta2.ResourcePermitPhaseExpired))
+		g.Expect(permit.Finalizers).To(ContainElement(meta.ControllerFinalizer))
+		g.Expect(permit.Status.ProcessedItems).To(HaveLen(1))
+		g.Expect(permit.Status.ProcessedItems[0].Status).To(Equal(metav1.ConditionFalse))
+		g.Expect(permit.Status.ProcessedItems[0].Message).To(ContainSubstring("replication owner resolver is not configured"))
+	}, defaultTimeoutInterval, defaultPollInterval).Should(Succeed())
+	assertPermitProtected()
+	Expect(cm.Data).To(Equal(map[string]string{"shared": "managed", "external": "retained"}))
+	Expect(cm.Labels).To(HaveKeyWithValue(meta.ReplicationProtectionLabel, meta.ValueTrue))
+
+	By("orphaning the replication without clearing surviving permit protection")
 	Expect(k8sClient.Delete(ctx, parent)).To(Succeed())
 	Eventually(func() bool {
 		return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(parent), parent))
 	}, defaultTimeoutInterval, defaultPollInterval).Should(BeTrue())
-	if !global {
-		assertPermitProtected()
-		expireActiveResourcePermit(ctx, permit)
-		Eventually(func() bool {
-			return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(permit), permit))
-		}, defaultTimeoutInterval, defaultPollInterval).Should(BeTrue())
-	}
-	Eventually(func() error {
-		return actor.Patch(ctx, cm, client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"annotations":{"allowed":"true"}}}`)))
-	}, defaultTimeoutInterval, defaultPollInterval).Should(Succeed())
-	Expect(actor.Delete(ctx, cm)).To(Succeed())
+	assertPermitProtected()
+	// Orphan retains managed fields. Removing its parent alone is not proof that
+	// the addon can safely discard those owners. An authorized executor resolves
+	// this test target explicitly after all preservation assertions have passed.
+	By("finishing permit cleanup after its executor removes the shared target")
+	resolveSharedTarget()
+	Eventually(func() bool {
+		return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(permit), permit))
+	}, defaultTimeoutInterval, defaultPollInterval).Should(BeTrue())
 	expectConfigMapData(excludedNamespace, name, map[string]string{"external": "excluded"})
 }
 

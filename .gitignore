@@ -13,7 +13,7 @@
 
 # Code coverage profiles and other test artifacts
 *.out
-coverage.*
+/coverage.*
 !coverage.go
 *.coverprofile
 profile.cov
@@ -38,3 +38,20 @@ go.work.sum
 *.test
 /go.work*
 /e2e-artifacts/
+
+# Shared Devbox, Task, documentation and plugin outputs
+.devbox/
+.task/
+artifacts/
+builds/
+docs/node_modules/
+docs/.hugo_build.lock
+docs/resources/
+docs/public/
+docs/hugo_stats.json
+docs/assets/jsconfig.json
+docs/test-results/
+docs/playwright-report/
+headlamp/dist/
+headlamp/*.tar.gz
+headlamp/.eslintcache

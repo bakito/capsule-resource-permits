@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"time"
 
-	permitsv1beta2 "github.com/projectcapsule/resource-permits/api/v1beta2"
-	permitevents "github.com/projectcapsule/resource-permits/internal/events"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
+	apimeta "github.com/projectcapsule/capsule/pkg/api/meta"
+	capsulerbac "github.com/projectcapsule/capsule/pkg/api/rbac"
+	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
+	evt "github.com/projectcapsule/capsule/pkg/runtime/events"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -23,12 +25,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
-	apimeta "github.com/projectcapsule/capsule/pkg/api/meta"
-	capsulerbac "github.com/projectcapsule/capsule/pkg/api/rbac"
-	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
-	evt "github.com/projectcapsule/capsule/pkg/runtime/events"
-
+	permitsv1beta2 "github.com/projectcapsule/resource-permits/api/v1beta2"
+	permitevents "github.com/projectcapsule/resource-permits/internal/events"
 	resourcepermitapi "github.com/projectcapsule/resource-permits/pkg/api/resourcepermit"
 )
 
@@ -258,7 +256,7 @@ var _ = Describe(
 			Expect(apierrors.IsNotFound(err)).To(BeTrue())
 		})
 
-		Describe("deletion protection", func() {
+		Describe("deletion protection", Label("deletion"), func() {
 			It("allows a requested request awaiting review to be cancelled", func() {
 				request := newLifecycleResourcePermit(
 					namespace.Name,
@@ -478,7 +476,7 @@ var _ = Describe(
 				}, defaultTimeoutInterval, defaultPollInterval).Should(Succeed())
 			})
 
-			It("preserves its lifecycle finalizer through tenant namespace cleanup", func() {
+			It("preserves its lifecycle finalizer through tenant namespace cleanup", Label("tenant-cleanup"), func() {
 				tnt := newResourcePermitCleanupTenant(namespace.Name)
 				EventuallyCreation(func() error { return k8sClient.Create(ctx, tnt) }).Should(Succeed())
 				DeferCleanup(func() { EventuallyDeletion(tnt) })
@@ -591,22 +589,7 @@ var _ = Describe(
 				}, defaultTerminationTimeoutInterval, defaultPollInterval).Should(BeTrue())
 			})
 
-			It("allows a configured administrator to delete an active request", func() {
-				original := &capsulev1beta2.CapsuleConfiguration{}
-				Expect(k8sClient.Get(ctx, client.ObjectKey{Name: defaultConfigurationName}, original)).To(Succeed())
-				originalAdministrators := append(capsulerbac.UserListSpec(nil), original.Spec.Administrators...)
-				DeferCleanup(func() {
-					ModifyCapsuleConfigurationOpts(func(configuration *capsulev1beta2.CapsuleConfiguration) {
-						configuration.Spec.Administrators = originalAdministrators
-					})
-				})
-				ModifyCapsuleConfigurationOpts(func(configuration *capsulev1beta2.CapsuleConfiguration) {
-					configuration.Spec.Administrators = append(
-						configuration.Spec.Administrators,
-						capsulerbac.UserSpec{Kind: capsulerbac.UserOwner, Name: resourcePermitLifecycleReviewer},
-					)
-				})
-
+			It("enforces deletion lifecycle for administrators and reviewers", Label("deletion-identities"), func() {
 				request := newLifecycleResourcePermit(
 					namespace.Name,
 					"e2e-resourcepermit-delete-active-admin",
@@ -619,14 +602,17 @@ var _ = Describe(
 				patchLifecyclePhase(ctx, reviewerClient, request, permitsv1beta2.ResourcePermitPhaseApproved)
 				waitForResourcePermitPhase(ctx, request, permitsv1beta2.ResourcePermitPhaseActive)
 
-				Eventually(func() error {
+				for _, actor := range []client.Client{k8sClient, reviewerClient} {
 					current := &permitsv1beta2.ResourcePermit{}
-					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(request), current); err != nil {
-						return client.IgnoreNotFound(err)
-					}
+					Expect(actor.Get(ctx, client.ObjectKeyFromObject(request), current)).To(Succeed())
+					Expect(actor.Delete(ctx, current)).To(MatchError(ContainSubstring("cannot be deleted before it has expired (current phase: Active)")))
+					Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(request), current)).To(Succeed())
+					Expect(current.DeletionTimestamp.IsZero()).To(BeTrue())
+					Expect(current.Status.Phase).To(Equal(permitsv1beta2.ResourcePermitPhaseActive))
+					Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: request.Namespace, Name: "e2e-resourcepermit-delete-active-admin-target"}, &corev1.ConfigMap{})).To(Succeed())
+				}
+				patchLifecyclePhase(ctx, reviewerClient, request, permitsv1beta2.ResourcePermitPhaseExpired)
 
-					return reviewerClient.Delete(ctx, current)
-				}, defaultTimeoutInterval, defaultPollInterval).Should(Succeed())
 				Eventually(func() bool {
 					current := &permitsv1beta2.ResourcePermit{}
 					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(request), current)
@@ -635,7 +621,7 @@ var _ = Describe(
 				}, defaultTimeoutInterval, defaultPollInterval).Should(BeTrue())
 			})
 
-			It("protects an expired request until archive retention ends", func() {
+			It("protects an expired request until archive retention ends", Label("deletion-identities"), func() {
 				request := newLifecycleResourcePermit(
 					namespace.Name,
 					"e2e-resourcepermit-delete-archived",

@@ -6,29 +6,24 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 
-	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
 	"github.com/projectcapsule/capsule/pkg/runtime/cache"
-	"github.com/projectcapsule/capsule/pkg/runtime/configuration"
 	controlleroptions "github.com/projectcapsule/capsule/pkg/runtime/controller"
 	"github.com/projectcapsule/capsule/pkg/runtime/events"
 	"github.com/projectcapsule/capsule/pkg/runtime/handlers"
 	coreindexers "github.com/projectcapsule/capsule/pkg/runtime/indexers"
-	tenantindexers "github.com/projectcapsule/capsule/pkg/runtime/indexers/tenant"
-	"github.com/projectcapsule/capsule/pkg/runtime/indexers/tenantresource"
 	runtimewebhook "github.com/projectcapsule/capsule/pkg/runtime/webhook"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	permitsv1beta2 "github.com/projectcapsule/resource-permits/api/v1beta2"
+	"github.com/projectcapsule/resource-permits/internal/configuration"
 	"github.com/projectcapsule/resource-permits/internal/controllers/invalidator"
 	permitcontroller "github.com/projectcapsule/resource-permits/internal/controllers/resourcepermit"
 	"github.com/projectcapsule/resource-permits/internal/metrics"
@@ -38,18 +33,27 @@ import (
 	permitindexers "github.com/projectcapsule/resource-permits/pkg/runtime/indexers/serviceaccount"
 )
 
+// +kubebuilder:rbac:groups=addons.projectcapsule.dev,resources=resourcepermits;resourcepermits/status;resourcepermittemplates;resourcepermittemplates/status;globalresourcepermittemplates;globalresourcepermittemplates/status,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=namespaces;serviceaccounts,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch;update
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
+// +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=users;groups;serviceaccounts,verbs=impersonate
+
 func main() {
 	var (
-		metricsAddress, healthAddress, certDir, configurationName string
-		leaderElection                                            bool
-		workers, burst                                            int
-		qps                                                       float64
+		metricsAddress, healthAddress, certDir string
+		leaderElection                         bool
+		workers, burst                         int
+		qps                                    float64
 	)
 
 	flag.StringVar(&metricsAddress, "metrics-bind-address", ":8080", "Metrics listen address")
 	flag.StringVar(&healthAddress, "health-probe-bind-address", ":8081", "Health probe listen address")
 	flag.StringVar(&certDir, "webhook-cert-dir", "/tmp/k8s-webhook-server/serving-certs", "Directory containing tls.crt and tls.key")
-	flag.StringVar(&configurationName, "capsule-configuration", "default", "Existing CapsuleConfiguration to use")
+
+	settings := configuration.Options{}
+	settings.BindFlags(flag.CommandLine)
 	flag.BoolVar(&leaderElection, "leader-elect", true, "Enable leader election")
 	flag.IntVar(&workers, "workers", 1, "Concurrent template reconciliations")
 	flag.Float64Var(&qps, "kube-api-qps", 50, "Kubernetes client QPS")
@@ -60,15 +64,19 @@ func main() {
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&logging)))
 
-	if err := run(ctrl.SetupSignalHandler(), metricsAddress, healthAddress, certDir, configurationName, leaderElection, workers, float32(qps), burst); err != nil {
+	if err := run(ctrl.SetupSignalHandler(), metricsAddress, healthAddress, certDir, settings, leaderElection, workers, float32(qps), burst); err != nil {
 		ctrl.Log.Error(err, "resource-permits stopped")
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, metricsAddress, healthAddress, certDir, configurationName string, leaderElection bool, workers int, qps float32, burst int) error {
+func run(ctx context.Context, metricsAddress, healthAddress, certDir string, settings configuration.Options, leaderElection bool, workers int, qps float32, burst int) error {
+	if err := settings.Validate(); err != nil {
+		return err
+	}
+
 	scheme := runtime.NewScheme()
-	for _, add := range []func(*runtime.Scheme) error{clientgoscheme.AddToScheme, capsulev1beta2.AddToScheme, permitsv1beta2.AddToScheme} {
+	for _, add := range []func(*runtime.Scheme) error{clientgoscheme.AddToScheme, permitsv1beta2.AddToScheme} {
 		if err := add(scheme); err != nil {
 			return err
 		}
@@ -93,14 +101,6 @@ func run(ctx context.Context, metricsAddress, healthAddress, certDir, configurat
 	if err != nil {
 		return err
 	}
-	// Capsule owns configuration. Require it to exist before using its shared
-	// accessors, so installing the addon never invents a parallel policy surface.
-	cfgObject := &capsulev1beta2.CapsuleConfiguration{}
-	if err := mgr.GetAPIReader().Get(ctx, client.ObjectKey{Name: configurationName}, cfgObject); err != nil {
-		return fmt.Errorf("loading CapsuleConfiguration: %w", err)
-	}
-
-	cfg := configuration.NewCapsuleConfiguration(ctx, mgr.GetClient(), mgr.GetAPIReader(), restConfig, configurationName)
 
 	if err := registerIndexes(ctx, mgr); err != nil {
 		return err
@@ -108,9 +108,9 @@ func run(ctx context.Context, metricsAddress, healthAddress, certDir, configurat
 
 	impersonation := cache.NewImpersonationCache()
 
-	options := controlleroptions.ControllerOptions{ConfigurationName: configurationName, Runtime: controlleroptions.RuntimeControllerOptions{MaxConcurrentReconciles: workers}}
+	options := controlleroptions.ControllerOptions{Runtime: controlleroptions.RuntimeControllerOptions{MaxConcurrentReconciles: workers}}
 	if err := (&permitcontroller.ResourcePermitReconciler{
-		Log: ctrl.Log.WithName("resourcepermit"), Configuration: cfg,
+		Log: ctrl.Log.WithName("resourcepermit"), RESTConfig: restConfig,
 		ImpersonationCache: impersonation, Metrics: *metrics.MustMakeResourcePermitsRecorder(),
 	}).SetupWithManager(mgr, options); err != nil {
 		return err
@@ -124,16 +124,16 @@ func run(ctx context.Context, metricsAddress, healthAddress, certDir, configurat
 		return err
 	}
 
-	if err := invalidator.Setup(ctx, mgr, impersonation, cfg, configurationName); err != nil {
+	if err := invalidator.Setup(mgr, impersonation, settings.CacheInvalidation); err != nil {
 		return err
 	}
 
-	recorder := events.NewEventRecorder(mgr.GetClient(), ctrl.Log.WithName("events"), mgr.GetEventRecorder("resource-permits"), cfg)
+	recorder := events.NewDiscardRecorder()
 
 	log := ctrl.Log.WithName("admission")
 	if err := runtimewebhook.Register(mgr, recorder, runtimewebhook.RegistrationOptions{},
 		route.ResourcePermitMutation(permitwebhook.ResourcePermitMutationHandler(log)),
-		route.ResourcePermitValidation(permitwebhook.ResourcePermitValidationHandler(log, cfg)),
+		route.ResourcePermitValidation(permitwebhook.ResourcePermitValidationHandler(log)),
 		route.ResourcePermitTemplateValidation(permitwebhook.ResourcePermitTemplateValidationHandler(log)),
 		route.GlobalResourcePermitTemplateValidation(permitwebhook.GlobalResourcePermitTemplateValidationHandler(log)),
 		route.GenericResourcePermitHandler(),
@@ -159,10 +159,8 @@ func registerIndexes(ctx context.Context, mgr ctrl.Manager) error {
 	indexes := []coreindexers.CustomIndexer{
 		permitindexers.ResourcePermitReference{},
 		permitindexers.ResourcePermitFieldOwner{},
-		tenantindexers.NamespacesReference{Obj: &capsulev1beta2.Tenant{}},
-		tenantresource.FieldOwner{Obj: &capsulev1beta2.GlobalTenantResource{}},
-		tenantresource.FieldOwner{Obj: &capsulev1beta2.TenantResource{}},
 	}
+
 	for _, index := range indexes {
 		if err := mgr.GetFieldIndexer().IndexField(ctx, index.Object(), index.Field(), index.Func()); err != nil {
 			return err

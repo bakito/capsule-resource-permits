@@ -1,0 +1,18 @@
+# Standalone coverage includes namespaces without Capsule tenant labels.
+webhooks:
+  hooks:
+    resources:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermits:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermitsMutating:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermittemplates:
+      namespaceSelector:
+        matchExpressions: []
+    serviceaccounts:
+      namespaceSelector:
+        matchExpressions: []

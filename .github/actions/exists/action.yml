@@ -1,0 +1,23 @@
+name: Check optional secret
+description: Report whether an optional integration secret is configured without exposing it.
+inputs:
+  value:
+    description: Optional secret value.
+    required: false
+outputs:
+  result:
+    description: Whether the input is nonempty.
+    value: ${{ steps.check.outputs.result }}
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      env:
+        OPTIONAL_VALUE: ${{ inputs.value }}
+      run: |-
+        if [[ -n "$OPTIONAL_VALUE" ]]; then
+          echo 'result=true' >> "$GITHUB_OUTPUT"
+        else
+          echo 'result=false' >> "$GITHUB_OUTPUT"
+        fi

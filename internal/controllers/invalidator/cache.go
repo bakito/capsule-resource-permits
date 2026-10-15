@@ -5,25 +5,24 @@ package invalidator
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
 	"github.com/projectcapsule/capsule/pkg/runtime/cache"
-	"github.com/projectcapsule/capsule/pkg/runtime/configuration"
-	"github.com/projectcapsule/capsule/pkg/runtime/predicates"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// Setup retains the shared cache's bounded invalidation and renews execution
-// clients when identities or Capsule's impersonation configuration change.
-func Setup(_ context.Context, mgr ctrl.Manager, clients *cache.ImpersonationCache, cfg configuration.Configuration, configurationName string) error {
+// Setup owns invalidation of this addon's cache, without watching Capsule APIs.
+func Setup(mgr ctrl.Manager, clients *cache.ImpersonationCache, interval time.Duration) error {
+	if interval <= 0 {
+		return fmt.Errorf("client cache invalidation interval must be positive")
+	}
+
 	enqueue := handler.EnqueueRequestsFromMapFunc(func(_ context.Context, obj client.Object) []reconcile.Request {
 		invalidateObject(clients, obj)
 
@@ -31,37 +30,29 @@ func Setup(_ context.Context, mgr ctrl.Manager, clients *cache.ImpersonationCach
 	})
 	if err := ctrl.NewControllerManagedBy(mgr).Named("resource-permits/clients").
 		Watches(&corev1.ServiceAccount{}, enqueue).
-		Watches(&capsulev1beta2.CapsuleConfiguration{}, enqueue, builder.WithPredicates(predicate.GenerationChangedPredicate{}, predicates.NamesMatchingPredicate{Names: []string{configurationName}})).
 		Complete(reconcile.Func(func(context.Context, reconcile.Request) (reconcile.Result, error) { return reconcile.Result{}, nil })); err != nil {
 		return err
 	}
 
 	return mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-		for {
-			duration := cfg.CacheInvalidation().Duration
-			if duration <= 0 {
-				duration = time.Hour
-			}
-
-			timer := time.NewTimer(duration)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-
-				return nil
-			case <-timer.C:
-				clients.Reset()
-			}
-		}
+		return resetPeriodically(ctx, clients, interval)
 	}))
 }
 
-func invalidateObject(clients *cache.ImpersonationCache, obj client.Object) {
-	if _, serviceAccount := obj.(*corev1.ServiceAccount); serviceAccount {
-		clients.Invalidate(obj.GetNamespace(), obj.GetName())
+func resetPeriodically(ctx context.Context, clients *cache.ImpersonationCache, interval time.Duration) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
-		return
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			clients.Reset()
+		}
 	}
+}
 
-	clients.Reset()
+func invalidateObject(clients *cache.ImpersonationCache, obj client.Object) {
+	clients.Invalidate(obj.GetNamespace(), obj.GetName())
 }

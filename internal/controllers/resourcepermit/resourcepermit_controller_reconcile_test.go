@@ -34,6 +34,7 @@ import (
 	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
 	"github.com/projectcapsule/capsule/pkg/api/meta"
 	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
+	"github.com/projectcapsule/capsule/pkg/runtime/configuration"
 	evt "github.com/projectcapsule/capsule/pkg/runtime/events"
 
 	mc "github.com/projectcapsule/resource-permits/internal/mocks/client"
@@ -74,6 +75,8 @@ var (
 )
 
 func TestResourcePermitReconciler_reconcile(t *testing.T) {
+	t.Setenv(configuration.EnvironmentServiceaccountName, "controller")
+	t.Setenv(configuration.EnvironmentControllerNamespace, "team-a")
 	s := scheme.Scheme
 	_ = capsulev1beta2.AddToScheme(s)
 
@@ -109,6 +112,7 @@ func TestResourcePermitReconciler_reconcile(t *testing.T) {
 			mocks: func(cl *mc.MockClient, scl *mc.MockSubResourceWriter) {
 				cl.EXPECT().Get(gm.Any(), gm.Any(), matchBrt).
 					Do(func(_ any, _ any, brt *permitsv1beta2.GlobalResourcePermitTemplate, _ ...any) {
+						brt.Spec.Impersonation = controllerExecutorReference()
 						brt.ResourceVersion = "1234"
 						brt.Spec.Resources = []apiruntime.ResourceTemplate{{
 							Targets: []runtime.RawExtension{mtConfigMapRendered},
@@ -156,6 +160,7 @@ func TestResourcePermitReconciler_reconcile(t *testing.T) {
 						matchLocalBrt,
 					).
 					Do(func(_ any, _ any, brt *permitsv1beta2.ResourcePermitTemplate, _ ...any) {
+						brt.Spec.Impersonation = &meta.LocalRFC1123ObjectReference{Name: "controller"}
 						brt.Namespace = "team-a"
 						brt.ResourceVersion = "local-1234"
 						brt.Spec.Resources = []apiruntime.ResourceTemplate{{
@@ -191,6 +196,7 @@ func TestResourcePermitReconciler_reconcile(t *testing.T) {
 			mocks: func(cl *mc.MockClient, scl *mc.MockSubResourceWriter) {
 				cl.EXPECT().Get(gm.Any(), gm.Any(), matchBrt).
 					Do(func(_ any, _ any, brt *permitsv1beta2.GlobalResourcePermitTemplate, _ ...any) {
+						brt.Spec.Impersonation = controllerExecutorReference()
 						brt.Spec.ParamSchema = &psString
 						brt.Spec.Resources = []apiruntime.ResourceTemplate{{
 							Targets: []runtime.RawExtension{mtConfigMapParameterized},
@@ -224,6 +230,7 @@ func TestResourcePermitReconciler_reconcile(t *testing.T) {
 			mocks: func(cl *mc.MockClient, scl *mc.MockSubResourceWriter) {
 				cl.EXPECT().Get(gm.Any(), gm.Any(), matchBrt).
 					Do(func(_ any, _ any, brt *permitsv1beta2.GlobalResourcePermitTemplate, _ ...any) {
+						brt.Spec.Impersonation = controllerExecutorReference()
 						brt.Spec.Resources = []apiruntime.ResourceTemplate{{
 							Targets: []runtime.RawExtension{mtConfigMapRendered},
 						}}
@@ -292,9 +299,10 @@ func TestResourcePermitReconciler_reconcile(t *testing.T) {
 						Reason:     resourceDryRunFailedReason,
 						Message:    "forbidden",
 					},
-					Request: &permitsv1beta2.ResourcePermitStatusRequest{Resources: []apiruntime.RenderedResource{{
-						Targets: []runtime.RawExtension{mtConfigMapRendered},
-					}}},
+					Request: &permitsv1beta2.ResourcePermitStatusRequest{
+						Impersonation: controllerExecutorReference(), Resources: []apiruntime.RenderedResource{{
+							Targets: []runtime.RawExtension{mtConfigMapRendered},
+						}}},
 				},
 			},
 			mocks: func(cl *mc.MockClient, scl *mc.MockSubResourceWriter) {
@@ -340,7 +348,8 @@ func TestResourcePermitReconciler_reconcile(t *testing.T) {
 						Reason:    "ApprovedByUser",
 					}},
 					Request: &permitsv1beta2.ResourcePermitStatusRequest{
-						StartTime: new(v1.NewTime(time.Now().Add(time.Hour))),
+						Impersonation: controllerExecutorReference(),
+						StartTime:     new(v1.NewTime(time.Now().Add(time.Hour))),
 					},
 				},
 			},
@@ -386,7 +395,8 @@ func TestResourcePermitReconciler_reconcile(t *testing.T) {
 						Reason:    "ApprovedByUser",
 					}},
 					Request: &permitsv1beta2.ResourcePermitStatusRequest{
-						StartTime: new(v1.Now()),
+						Impersonation: controllerExecutorReference(),
+						StartTime:     new(v1.Now()),
 						Resources: []apiruntime.RenderedResource{{
 							Targets: []runtime.RawExtension{mtConfigMapRendered},
 						}},
@@ -453,7 +463,8 @@ func TestResourcePermitReconciler_reconcile(t *testing.T) {
 						Type:               meta.ReadyCondition,
 					}},
 					Request: &permitsv1beta2.ResourcePermitStatusRequest{
-						StartTime: new(v1.Now()),
+						Impersonation: controllerExecutorReference(),
+						StartTime:     new(v1.Now()),
 						Resources: []apiruntime.RenderedResource{{
 							Targets: []runtime.RawExtension{mtConfigMapRendered},
 						}},

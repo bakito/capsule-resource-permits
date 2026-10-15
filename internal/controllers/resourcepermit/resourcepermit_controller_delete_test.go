@@ -22,22 +22,24 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
 	"github.com/projectcapsule/capsule/pkg/api/meta"
 	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
+	"github.com/projectcapsule/capsule/pkg/runtime/configuration"
 	"github.com/projectcapsule/capsule/pkg/runtime/ssa"
 )
 
 func TestResourcePermitWaitsForManagedResourceDeletion(t *testing.T) {
-	t.Parallel()
+	t.Setenv(configuration.EnvironmentServiceaccountName, "controller")
+	t.Setenv(configuration.EnvironmentControllerNamespace, "operations")
 
 	for _, deleting := range []bool{false, true} {
 		for _, tracked := range []bool{false, true} {
 			for _, clusterScoped := range []bool{false, true} {
 				t.Run(fmt.Sprintf("deleting=%t/tracked=%t/cluster=%t", deleting, tracked, clusterScoped), func(t *testing.T) {
-					t.Parallel()
 					ctx := context.Background()
 					scheme := runtime.NewScheme()
 					require.NoError(t, corev1.AddToScheme(scheme))
@@ -83,7 +85,8 @@ func TestResourcePermitWaitsForManagedResourceDeletion(t *testing.T) {
 							}},
 					})
 					permit.Status.Request = &permitsv1beta2.ResourcePermitStatusRequest{
-						Resources: []apiruntime.RenderedResource{{Targets: []runtime.RawExtension{{Object: target.DeepCopy()}}}},
+						Impersonation: controllerExecutorReference(),
+						Resources:     []apiruntime.RenderedResource{{Targets: []runtime.RawExtension{{Object: target.DeepCopy()}}}},
 					}
 					manager := ssa.Manager{Mapper: mapper}
 					if tracked {
@@ -124,7 +127,8 @@ func TestResourcePermitWaitsForManagedResourceDeletion(t *testing.T) {
 }
 
 func TestResourcePermitDeletionDoesNotPruneUnappliedPreview(t *testing.T) {
-	t.Parallel()
+	t.Setenv(configuration.EnvironmentServiceaccountName, "controller")
+	t.Setenv(configuration.EnvironmentControllerNamespace, "operations")
 
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
@@ -141,6 +145,7 @@ func TestResourcePermitDeletionDoesNotPruneUnappliedPreview(t *testing.T) {
 		Status: permitsv1beta2.ResourcePermitStatus{
 			Phase: permitsv1beta2.ResourcePermitPhaseExpired,
 			Request: &permitsv1beta2.ResourcePermitStatusRequest{
+				Impersonation: controllerExecutorReference(),
 				Resources: []apiruntime.RenderedResource{{Targets: []runtime.RawExtension{{Object: &corev1.ConfigMap{
 					APIVersion: "v1", Kind: "ConfigMap",
 					ObjectMeta: target.ObjectMeta,
@@ -193,4 +198,80 @@ func TestResourcePermitExpiryBeforeActivationDoesNotNeedExecutionIdentity(t *tes
 	_, err := r.reconcile(ctx, ctrl.Log, current)
 	require.NoError(t, err)
 	require.True(t, apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(permit), current)))
+}
+
+func TestResourcePermitCleanupPreservesUnresolvedReplicationOwnership(t *testing.T) {
+	t.Setenv(configuration.EnvironmentServiceaccountName, "controller")
+	t.Setenv(configuration.EnvironmentControllerNamespace, "operations")
+
+	for _, deleting := range []bool{false, true} {
+		for _, policy := range []apiruntime.ResourceDeletionPolicy{apiruntime.ResourceDeletionPolicyRemove, apiruntime.ResourceDeletionPolicyOrphan} {
+			t.Run(fmt.Sprintf("deleting=%t/policy=%s", deleting, policy), func(t *testing.T) {
+				scheme := runtime.NewScheme()
+				require.NoError(t, corev1.AddToScheme(scheme))
+				require.NoError(t, permitsv1beta2.AddToScheme(scheme))
+				namespace := &corev1.Namespace{Name: "team-a"}
+				permit := &permitsv1beta2.ResourcePermit{
+					Name: "permit", Namespace: namespace.Name, UID: "permit-uid", Finalizers: []string{meta.ControllerFinalizer},
+					Status: permitsv1beta2.ResourcePermitStatus{Phase: permitsv1beta2.ResourcePermitPhaseExpired},
+				}
+				if deleting {
+					now := metav1.Now()
+					permit.DeletionTimestamp = &now
+					namespace.Status.Phase = corev1.NamespaceTerminating
+				}
+				target := &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "ConfigMap", "data": map[string]interface{}{"external": "preserve"}}}
+				target.SetName("shared")
+				target.SetNamespace(namespace.Name)
+				target.SetUID("shared-uid")
+				target.SetLabels(map[string]string{permitmeta.ResourcePermitProtectionLabel: meta.ValueTrue, meta.ReplicationProtectionLabel: meta.ValueTrue})
+				target.SetManagedFields([]metav1.ManagedFieldsEntry{
+					{Manager: permitmeta.ResourcePermitFieldOwner(permit), Operation: metav1.ManagedFieldsOperationApply, APIVersion: "v1", FieldsType: "FieldsV1", FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:data":{"f:external":{}}}`)}},
+					{Manager: "abc/default/tenant/0/raw-0/", Operation: metav1.ManagedFieldsOperationApply, APIVersion: "v1", FieldsType: "FieldsV1", FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:data":{"f:external":{}}}`)}},
+				})
+				permit.Status.Request = &permitsv1beta2.ResourcePermitStatusRequest{
+					Impersonation: controllerExecutorReference(),
+					Resources:     []apiruntime.RenderedResource{{Policy: apiruntime.ResourceTemplatePolicy{Deletion: policy}, Targets: []runtime.RawExtension{{Object: target.DeepCopy()}}}},
+				}
+				mapper := k8smeta.NewDefaultRESTMapper(nil)
+				mapper.Add(corev1.SchemeGroupVersion.WithKind("ConfigMap"), k8smeta.RESTScopeNamespace)
+				manager := ssa.Manager{Mapper: mapper}
+				item, err := managedResourceStatus(manager, target)
+				require.NoError(t, err)
+				permit.Status.ProcessedItems.UpdateItem(item)
+				cl := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(permit).
+					WithObjects(namespace, permit, target).WithReturnManagedFields().WithInterceptorFuncs(interceptor.Funcs{
+					List: func(context.Context, client.WithWatch, client.ObjectList, ...client.ListOption) error {
+						t.Fatal("cleanup must not discover Capsule owners by listing resources")
+						return nil
+					},
+					Patch: func(context.Context, client.WithWatch, client.Object, client.Patch, ...client.PatchOption) error {
+						t.Fatal("unresolved ownership must not patch the target")
+						return nil
+					},
+					Delete: func(context.Context, client.WithWatch, client.Object, ...client.DeleteOption) error {
+						t.Fatal("unresolved ownership must not delete the target or permit")
+						return nil
+					},
+				}).Build()
+				before := &unstructured.Unstructured{}
+				before.SetGroupVersionKind(target.GroupVersionKind())
+				require.NoError(t, cl.Get(t.Context(), client.ObjectKeyFromObject(target), before))
+				r := &ResourcePermitReconciler{Client: cl, resources: manager}
+				for range 2 {
+					current := &permitsv1beta2.ResourcePermit{}
+					require.NoError(t, cl.Get(t.Context(), client.ObjectKeyFromObject(permit), current))
+					_, err = r.reconcile(t.Context(), ctrl.Log, current)
+					require.ErrorContains(t, err, "replication owner resolver is not configured")
+					require.NoError(t, cl.Get(t.Context(), client.ObjectKeyFromObject(permit), current))
+					require.Contains(t, current.Finalizers, meta.ControllerFinalizer)
+					require.Len(t, current.Status.ProcessedItems, 1)
+					require.Equal(t, metav1.ConditionFalse, current.Status.ProcessedItems[0].Status)
+					require.Contains(t, current.Status.ProcessedItems[0].Message, "replication owner resolver is not configured")
+					require.NoError(t, cl.Get(t.Context(), client.ObjectKeyFromObject(target), target))
+					require.Equal(t, before.Object, target.Object)
+				}
+			})
+		}
+	}
 }

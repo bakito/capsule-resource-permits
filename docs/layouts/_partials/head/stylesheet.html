@@ -1,0 +1,13 @@
+{{/* Doks styles with the locked Dart Sass compiler and Hugo fingerprinting.
+     Keep the build free of unused Thulite/PostCSS dependencies. */}}
+{{ with resources.Get "scss/app.scss" }}
+  {{ $options := dict "transpiler" "dartsass" "includePaths" (slice "node_modules")
+    "enableSourceMap" hugo.IsDevelopment "outputStyle" (cond hugo.IsDevelopment "expanded" "compressed")
+    "silenceDeprecations" (slice "import" "global-builtin" "color-functions" "if-function") }}
+  {{ $styles := . | css.Sass $options }}
+  {{/* Doks uses root-relative font paths; include the configured URL prefix. */}}
+  {{ $styles = resources.FromString "css/app.css" (replace $styles.Content "/fonts/" (relURL "fonts/")) }}
+  {{ with $styles | fingerprint }}
+    <link rel="stylesheet" href="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous">
+  {{ end }}
+{{ end }}

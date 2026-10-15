@@ -1,0 +1,75 @@
+{
+  "minimumReleaseAge": null,
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard", "helpers:pinGitHubActionDigests"],
+  "baseBranchPatterns": ["main"],
+  "prHourlyLimit": 0,
+  "prConcurrentLimit": 0,
+  "branchConcurrentLimit": 0,
+  "mode": "full",
+  "commitMessageLowerCase": "auto",
+  "semanticCommits": "enabled",
+  "semanticCommitType": "feat",
+  "ignorePaths": ["docs"],
+  "labels": ["renovate"],
+  "devbox": {
+    "enabled": true,
+    "lockFileMaintenance": {
+      "enabled": true
+    }
+  },
+  "flux": {
+    "managerFilePatterns": ["/^.*flux\\.yaml$/"]
+  },
+  "packageRules": [
+    {
+      "matchFileNames": ["devbox.json"],
+      "groupName": "devbox-toolchain"
+    },
+    {
+      "matchManagers": ["github-actions", "flux"],
+      "groupName": "all-ci-updates",
+      "matchUpdateTypes": ["major", "minor", "patch"]
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["sigstore/cosign-installer"],
+      "enabled": false
+    },
+    {
+      "description": "grc.store requires the trusted publisher's v1 tag in its OIDC identity",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["revanite-io/pvtr-publish-results"],
+      "pinDigests": false,
+      "enabled": false
+    },
+    {
+      "matchManagers": [
+        "github-actions",
+        "gomod",
+        "dockerfile",
+        "docker-compose"
+      ],
+      "minimumReleaseAge": "14 days"
+    },
+    {
+      "matchManagers": ["helmv3", "helm-values", "flux"],
+      "minimumReleaseAge": null
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update crdoc installed by the Devbox init hook",
+      "managerFilePatterns": [
+        "/^devbox\\.json$/"
+      ],
+      "matchStrings": [
+        "\"CRDOC_VERSION\"\\s*:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "fybrik.io/crdoc",
+      "datasourceTemplate": "gomod",
+      "versioningTemplate": "go"
+    }
+  ]
+}

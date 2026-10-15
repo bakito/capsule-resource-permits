@@ -1,0 +1,46 @@
+name: Build images with ko
+on:
+  pull_request:
+    paths:
+      - '.github/actions/**'
+      - '.github/workflows/docker-*.yml'
+      - 'api/**'
+      - 'pkg/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - '.ko.yaml'
+      - 'go.*'
+      - 'Taskfile.yml'
+      - 'devbox.*'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-images:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/setup
+      - name: Build image archive
+        run: devbox run -- task image:build
+        env:
+          VERSION: ${{ github.sha }}
+      - name: Scan the built image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          input: dist/controller.tar
+          scan-type: image
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+        env:
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
+      - uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          sarif_file: trivy-results.sarif

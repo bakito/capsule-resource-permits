@@ -1,0 +1,7 @@
+{{- $name := .Get 0 -}}
+{{- with resources.Get (printf "examples/%s" $name) -}}
+{{- $.Page.RenderString (printf "```yaml\n%s\n```" .Content) -}}
+<p><a href="{{ printf "examples/%s" $name | relURL }}" download>Download {{ $name }}</a></p>
+{{- else -}}
+{{- errorf "Missing example %s" $name -}}
+{{- end -}}

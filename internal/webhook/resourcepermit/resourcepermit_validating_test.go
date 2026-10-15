@@ -10,8 +10,13 @@ import (
 	"testing"
 	"time"
 
-	permitsv1beta2 "github.com/projectcapsule/resource-permits/api/v1beta2"
-
+	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
+	capsulemeta "github.com/projectcapsule/capsule/pkg/api/meta"
+	"github.com/projectcapsule/capsule/pkg/api/rbac"
+	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
+	runtimeconfiguration "github.com/projectcapsule/capsule/pkg/runtime/configuration"
+	"github.com/projectcapsule/capsule/pkg/runtime/selectors"
+	tpl "github.com/projectcapsule/capsule/pkg/template"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gm "go.uber.org/mock/gomock"
@@ -26,27 +31,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
-	capsulemeta "github.com/projectcapsule/capsule/pkg/api/meta"
-	"github.com/projectcapsule/capsule/pkg/api/rbac"
-	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
-	runtimeconfiguration "github.com/projectcapsule/capsule/pkg/runtime/configuration"
-	"github.com/projectcapsule/capsule/pkg/runtime/selectors"
-	tpl "github.com/projectcapsule/capsule/pkg/template"
-
+	permitsv1beta2 "github.com/projectcapsule/resource-permits/api/v1beta2"
 	mc "github.com/projectcapsule/resource-permits/internal/mocks/client"
 	"github.com/projectcapsule/resource-permits/internal/webhook/test"
 	"github.com/projectcapsule/resource-permits/pkg/api/resourcepermit"
 )
-
-type resourcePermitValidationTestConfiguration struct {
-	runtimeconfiguration.Configuration
-	administrators rbac.UserListSpec
-}
-
-func (c resourcePermitValidationTestConfiguration) Administrators() rbac.UserListSpec {
-	return c.administrators
-}
 
 func TestResourcePermitValidationHandler(t *testing.T) {
 	defaultTemplateName := "foo"
@@ -351,7 +340,7 @@ func TestResourcePermitValidationHandler(t *testing.T) {
 				decoder := &test.Decoder[*permitsv1beta2.ResourcePermit]{
 					Object: tt.br,
 				}
-				validator := ResourcePermitValidationHandler(log, nil)
+				validator := ResourcePermitValidationHandler(log)
 
 				if tt.setup != nil {
 					tt.setup(reader)
@@ -431,13 +420,15 @@ func TestResourcePermitValidationHandler(t *testing.T) {
 				}},
 			},
 			{
-				name: "allow an administrator to delete an active request",
+				name: "deny a named user deleting an active request",
 				br: &permitsv1beta2.ResourcePermit{Status: permitsv1beta2.ResourcePermitStatus{
 					Phase: permitsv1beta2.ResourcePermitPhaseActive,
 				}},
 				request: admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
 					UserInfo: authenticationv1.UserInfo{Username: "alice"},
 				}},
+				expected: http.StatusForbidden,
+				errMsg:   "cannot be deleted before it has expired (current phase: Active)",
 			},
 			{
 				name: "allow an expired request without archive retention",
@@ -455,7 +446,7 @@ func TestResourcePermitValidationHandler(t *testing.T) {
 				errMsg:   "cannot be deleted before archive retention expires",
 			},
 			{
-				name: "allow an administrator to delete during archive retention",
+				name: "deny a named user deleting during archive retention",
 				br: &permitsv1beta2.ResourcePermit{Status: permitsv1beta2.ResourcePermitStatus{
 					Phase:     permitsv1beta2.ResourcePermitPhaseExpired,
 					KeepUntil: &future,
@@ -463,6 +454,8 @@ func TestResourcePermitValidationHandler(t *testing.T) {
 				request: admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
 					UserInfo: authenticationv1.UserInfo{Username: "alice"},
 				}},
+				expected: http.StatusForbidden,
+				errMsg:   "cannot be deleted before archive retention expires",
 			},
 			{
 				name: "allow an expired request after archive retention",
@@ -479,9 +472,7 @@ func TestResourcePermitValidationHandler(t *testing.T) {
 				assert.NoError(t, corev1.AddToScheme(scheme))
 				reader := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tt.objects...).Build()
 				decoder := &test.Decoder[*permitsv1beta2.ResourcePermit]{OldObject: tt.br}
-				validator := ResourcePermitValidationHandler(log, resourcePermitValidationTestConfiguration{
-					administrators: rbac.UserListSpec{{Kind: rbac.UserOwner, Name: "alice"}},
-				})
+				validator := ResourcePermitValidationHandler(log)
 
 				resp := validator.OnDelete(nil, reader, decoder, nil)(ctx, tt.request)
 				if tt.expected == 0 {
@@ -896,7 +887,7 @@ func TestResourcePermitValidationHandler(t *testing.T) {
 					Object:    tt.newBr,
 					OldObject: tt.oldBr,
 				}
-				validator := ResourcePermitValidationHandler(log, nil)
+				validator := ResourcePermitValidationHandler(log)
 				if tt.setup != nil {
 					tt.setup(reader)
 				}
@@ -950,7 +941,7 @@ func TestResourcePermitValidationRejectsInvalidParametersBeforeRendering(t *test
 		},
 	}
 	decoder := &test.Decoder[*permitsv1beta2.ResourcePermit]{Object: br}
-	validator := ResourcePermitValidationHandler(ctrl.Log.WithName("test"), nil)
+	validator := ResourcePermitValidationHandler(ctrl.Log.WithName("test"))
 
 	resp := validator.OnCreate(cl, cl, decoder, nil)(context.Background(), admission.Request{})
 	test.VerifyResponse(t, resp, http.StatusForbidden, "source in body is required")
@@ -1048,8 +1039,9 @@ func TestResourcePermitApprovalReadiness(t *testing.T) {
 			}}
 			decoder := &test.Decoder[*permitsv1beta2.ResourcePermit]{Object: newBr, OldObject: oldBr}
 			req := admission.Request{
-				SubResource: "status", UserInfo: authenticationv1.UserInfo{Username: tt.username}}
-			resp := ResourcePermitValidationHandler(ctrl.Log, nil).OnUpdate(nil, reader, decoder, nil)(context.Background(), req)
+				SubResource: "status", UserInfo: authenticationv1.UserInfo{Username: tt.username},
+			}
+			resp := ResourcePermitValidationHandler(ctrl.Log).OnUpdate(nil, reader, decoder, nil)(context.Background(), req)
 			if tt.denied == "" {
 				if resp != nil {
 					t.Fatalf("unexpected admission response: %+v", resp.Result)
@@ -1058,5 +1050,56 @@ func TestResourcePermitApprovalReadiness(t *testing.T) {
 				test.VerifyResponse(t, resp, http.StatusForbidden, tt.denied)
 			}
 		})
+	}
+}
+
+func TestDeleteLifecycleAppliesToEveryIdentity(t *testing.T) {
+	future := metav1.NewTime(time.Now().Add(time.Hour))
+	for _, identity := range []authenticationv1.UserInfo{
+		{Username: "alice"},
+		{Username: "operator", Groups: []string{"operators", "system:masters"}},
+		{Username: "system:serviceaccount:operations:runner"},
+		{Username: "system:serviceaccount:other:runner"},
+	} {
+		for _, tt := range []struct {
+			name        string
+			phase       permitsv1beta2.ResourcePermitPhase
+			keepUntil   *metav1.Time
+			terminating bool
+			readError   error
+			expected    int32
+			message     string
+		}{
+			{name: "active", phase: permitsv1beta2.ResourcePermitPhaseActive, expected: http.StatusForbidden, message: "cannot be deleted before it has expired"},
+			{name: "retained", phase: permitsv1beta2.ResourcePermitPhaseExpired, keepUntil: &future, expected: http.StatusForbidden, message: "cannot be deleted before archive retention expires"},
+			{name: "expired", phase: permitsv1beta2.ResourcePermitPhaseExpired},
+			{name: "cancellation", phase: permitsv1beta2.ResourcePermitPhaseRequested},
+			{name: "namespace terminating", phase: permitsv1beta2.ResourcePermitPhaseActive, terminating: true},
+			{name: "namespace deleted", phase: permitsv1beta2.ResourcePermitPhaseActive, readError: apierr.NewNotFound(corev1.Resource("namespaces"), "team-a")},
+			{name: "namespace unavailable", phase: permitsv1beta2.ResourcePermitPhaseExpired, readError: errors.New("namespace lookup failed"), expected: http.StatusInternalServerError, message: "namespace lookup failed"},
+		} {
+			t.Run(identity.Username+"/"+tt.name, func(t *testing.T) {
+				reader := mc.NewMockReader(gm.NewController(t))
+				// Exactly one namespace read; no lists or Capsule configuration lookups.
+				reader.EXPECT().Get(gm.Any(), client.ObjectKey{Name: "team-a"}, gm.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
+						if tt.terminating {
+							obj.(*corev1.Namespace).Status.Phase = corev1.NamespaceTerminating
+						}
+						return tt.readError
+					},
+				).Times(1)
+				decoder := &test.Decoder[*permitsv1beta2.ResourcePermit]{OldObject: &permitsv1beta2.ResourcePermit{
+					Namespace: "team-a", Status: permitsv1beta2.ResourcePermitStatus{Phase: tt.phase, KeepUntil: tt.keepUntil},
+				}}
+				req := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{Namespace: "team-a", UserInfo: identity}}
+				resp := ResourcePermitValidationHandler(ctrl.Log).OnDelete(nil, reader, decoder, nil)(t.Context(), req)
+				if tt.expected == 0 {
+					require.Nil(t, resp)
+				} else {
+					test.VerifyResponse(t, resp, tt.expected, tt.message)
+				}
+			})
+		}
 	}
 }

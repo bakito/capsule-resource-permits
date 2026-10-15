@@ -1,27 +1,111 @@
 version: 2
 project_name: resource-permits
+before:
+  hooks:
+    - 'task headlamp:release-build VERSION={{ .Version }}'
 builds:
   - id: controller
-    main: ./cmd/controller
+    main: "./cmd/controller"
     binary: resource-permits
-    env: [CGO_ENABLED=0]
-    ldflags: &version
-      - -X github.com/projectcapsule/resource-permits/internal/version.GitTag={{ .Tag }} -X github.com/projectcapsule/resource-permits/internal/version.GitCommit={{ .Commit }} -X github.com/projectcapsule/resource-permits/internal/version.GitDirty=
-    goos: [linux]
-    goarch: [amd64, arm64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - "-s -w -X github.com/projectcapsule/resource-permits/internal/version.GitTag={{ .Tag }} -X github.com/projectcapsule/resource-permits/internal/version.GitCommit={{ .Commit }} -X github.com/projectcapsule/resource-permits/internal/version.GitDirty="
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - "-trimpath"
   - id: cli
-    main: ./cmd/cli
+    main: "./cmd/cli"
     binary: kubectl-resource_permits
-    env: [CGO_ENABLED=0]
-    ldflags: *version
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - "-s -w -X github.com/projectcapsule/resource-permits/internal/version.GitTag={{ .Tag }} -X github.com/projectcapsule/resource-permits/internal/version.GitCommit={{ .Commit }} -X github.com/projectcapsule/resource-permits/internal/version.GitDirty="
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - "-trimpath"
 archives:
   - id: controller
-    ids: [controller]
-    name_template: 'resource-permits_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    ids:
+      - controller
+    name_template: resource-permits_{{ .Version }}_{{ .Os }}_{{ .Arch }}
   - id: cli
-    ids: [cli]
-    name_template: 'kubectl-resource_permits_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    ids:
+      - cli
+    name_template: kubectl-resource_permits_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+  - id: headlamp
+    meta: true
+    name_template: 'resource-permits-{{ .Version }}'
+    wrap_in_directory: headlamp
+    files:
+      - src: headlamp/dist/main.js
+        strip_parent: true
+        info:
+          mtime: '{{ .CommitDate }}'
+      - src: headlamp/dist/package.json
+        strip_parent: true
+        info:
+          mtime: '{{ .CommitDate }}'
+      - src: LICENSE
+        info:
+          mtime: '{{ .CommitDate }}'
+release:
+  prerelease: auto
+  footer: "**Full Changelog**: https://github.com/projectcapsule/resource-permits/compare/{{ .PreviousTag }}...{{ .Tag }}\n\n**Container images (ko)**\n- `ghcr.io/projectcapsule/resource-permits:{{ .Version }}`\n\n**Helm Chart**\nView this release on [Artifact Hub](https://artifacthub.io/packages/helm/projectcapsule/resource-permits/{{ .Version }}) or use the OCI helm chart:\n\n- `ghcr.io/projectcapsule/charts/{{ .ProjectName }}:{{ .Version }}`\n\nThanks to all the contributors! 🚀 🦄\n"
 checksum:
   name_template: checksums.txt
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^test:"
+      - "^chore"
+      - "^rebase:"
+      - merge conflict
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+  groups:
+    - title: "🛠 Dependency updates"
+      regexp: "^fix\\(deps\\):|^feat\\(deps\\):"
+      order: 300
+    - title: "✨ New Features"
+      regexp: "^feat(\\([^)]*\\))?:"
+      order: 100
+    - title: "🐛 Bug fixes"
+      regexp: "^fix(\\([^)]*\\))?:"
+      order: 200
+    - title: "📖 Documentation updates"
+      regexp: "^docs(\\([^)]*\\))?:"
+      order: 400
+    - title: "🛡️ Security updates"
+      regexp: "^sec(\\([^)]*\\))?:"
+      order: 500
+    - title: "🚀 Build process updates"
+      regexp: "^(build|ci)(\\([^)]*\\))?:"
+      order: 600
+    - title: "📦 Other work"
+      regexp: "^chore(\\([^)]*\\))?:|^chore:"
+      order: 9999
+sboms:
+  - artifacts: archive
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: all

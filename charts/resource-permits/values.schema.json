@@ -1,0 +1,1011 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "crds": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "description": "Extra Annotations for CRDs",
+                    "type": "object"
+                },
+                "exclusive": {
+                    "description": "Only install the CRDs, no other primitives",
+                    "type": "boolean"
+                },
+                "inline": {
+                    "description": "Render CRDS inline (in this case use --skip-crds when installing the chart)",
+                    "type": "boolean"
+                },
+                "install": {
+                    "description": "Install the CustomResourceDefinitions (This also manages the lifecycle of the CRDs for update operations)",
+                    "type": "boolean"
+                },
+                "keep": {
+                    "description": "Retain CRDs and their resources when an inline installation is uninstalled",
+                    "type": "boolean"
+                },
+                "labels": {
+                    "description": "Extra Labels for CRDs",
+                    "type": "object"
+                }
+            }
+        },
+        "fullnameOverride": {
+            "type": "string"
+        },
+        "global": {
+            "type": "object",
+            "properties": {
+                "jobs": {
+                    "type": "object",
+                    "properties": {
+                        "kubectl": {
+                            "type": "object",
+                            "properties": {
+                                "affinity": {
+                                    "description": "Set affinity rules",
+                                    "type": "object"
+                                },
+                                "annotations": {
+                                    "description": "Annotations to add to the job.",
+                                    "type": "object"
+                                },
+                                "backoffLimit": {
+                                    "description": "Backofflimit for jobs",
+                                    "type": "integer"
+                                },
+                                "image": {
+                                    "type": "object",
+                                    "properties": {
+                                        "pullPolicy": {
+                                            "description": "Set the image pull policy of the helm chart job",
+                                            "type": "string"
+                                        },
+                                        "registry": {
+                                            "description": "Set the image repository of the helm chart job",
+                                            "type": "string"
+                                        },
+                                        "repository": {
+                                            "description": "Set the image repository of the helm chart job",
+                                            "type": "string"
+                                        },
+                                        "tag": {
+                                            "description": "Set the image tag of the helm chart job",
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "imagePullSecrets": {
+                                    "description": "ImagePullSecrets",
+                                    "type": "array"
+                                },
+                                "labels": {
+                                    "description": "Labels to add to the job.",
+                                    "type": "object"
+                                },
+                                "nodeSelector": {
+                                    "description": "Set the node selector",
+                                    "type": "object"
+                                },
+                                "podAnnotations": {
+                                    "description": "Annotations to add to the job pod",
+                                    "type": "object"
+                                },
+                                "podLabels": {
+                                    "description": "Labels to add to the job pod",
+                                    "type": "object"
+                                },
+                                "podSecurityContext": {
+                                    "description": "Security context for the job pods.",
+                                    "type": "object",
+                                    "properties": {
+                                        "enabled": {
+                                            "type": "boolean"
+                                        },
+                                        "seccompProfile": {
+                                            "type": "object",
+                                            "properties": {
+                                                "type": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "priorityClassName": {
+                                    "description": "Set a pod priorityClassName",
+                                    "type": "string"
+                                },
+                                "resources": {
+                                    "description": "Job resources",
+                                    "type": "object"
+                                },
+                                "restartPolicy": {
+                                    "description": "Set the restartPolicy",
+                                    "type": "string"
+                                },
+                                "securityContext": {
+                                    "description": "Security context for the job containers.",
+                                    "type": "object",
+                                    "properties": {
+                                        "allowPrivilegeEscalation": {
+                                            "type": "boolean"
+                                        },
+                                        "capabilities": {
+                                            "type": "object",
+                                            "properties": {
+                                                "drop": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "enabled": {
+                                            "type": "boolean"
+                                        },
+                                        "readOnlyRootFilesystem": {
+                                            "type": "boolean"
+                                        },
+                                        "runAsGroup": {
+                                            "type": "integer"
+                                        },
+                                        "runAsNonRoot": {
+                                            "type": "boolean"
+                                        },
+                                        "runAsUser": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "tolerations": {
+                                    "description": "Set list of tolerations",
+                                    "type": "array"
+                                },
+                                "topologySpreadConstraints": {
+                                    "description": "Set Topology Spread Constraints",
+                                    "type": "array"
+                                },
+                                "ttlSecondsAfterFinished": {
+                                    "description": "Sets the ttl in seconds after a finished certgen job is deleted. Set to -1 to never delete.",
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "manager": {
+            "type": "object",
+            "properties": {
+                "affinity": {
+                    "description": "Set affinity rules",
+                    "type": "object"
+                },
+                "args": {
+                    "type": "object",
+                    "properties": {
+                        "cacheInvalidation": {
+                            "description": "Periodic reset interval for impersonation clients",
+                            "type": "string"
+                        },
+                        "extra": {
+                            "description": "Extra arguments to pass to the manager container",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "kubeApiBurst": {
+                            "description": "Kubernetes client burst",
+                            "type": "integer"
+                        },
+                        "kubeApiQPS": {
+                            "description": "Kubernetes client QPS",
+                            "type": "number"
+                        },
+                        "workers": {
+                            "description": "Concurrent template reconciliations",
+                            "type": "integer"
+                        }
+                    }
+                },
+                "env": {
+                    "description": "Environment variables",
+                    "type": "array"
+                },
+                "hostUsers": {
+                    "description": "Do not use Host Users (User Namespaces)",
+                    "type": "boolean"
+                },
+                "image": {
+                    "type": "object",
+                    "properties": {
+                        "pullPolicy": {
+                            "description": "Set the image pull policy.",
+                            "type": "string"
+                        },
+                        "reference": {
+                            "description": "Complete image reference, including an optional digest; overrides registry, repository, and tag",
+                            "type": "string"
+                        },
+                        "registry": {
+                            "description": "Set the image registry",
+                            "type": "string"
+                        },
+                        "repository": {
+                            "description": "Set the image repository",
+                            "type": "string"
+                        },
+                        "tag": {
+                            "description": "Overrides the image tag whose default is the chart appVersion.",
+                            "type": "string"
+                        }
+                    }
+                },
+                "livenessProbe": {
+                    "description": "Configure the liveness probe using Deployment probe spec",
+                    "type": "object",
+                    "properties": {
+                        "httpGet": {
+                            "type": "object",
+                            "properties": {
+                                "path": {
+                                    "type": "string"
+                                },
+                                "port": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "nodeSelector": {
+                    "description": "Set the node selector",
+                    "type": "object"
+                },
+                "podAnnotations": {
+                    "description": "Additional annotations for manager Pods",
+                    "type": "object"
+                },
+                "podLabels": {
+                    "description": "Additional labels for manager Pods",
+                    "type": "object"
+                },
+                "podSecurityContext": {
+                    "description": "Set the securityContext",
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean"
+                        },
+                        "seccompProfile": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                },
+                "priorityClassName": {
+                    "description": "Set the priority class name of the controller pod",
+                    "type": "string"
+                },
+                "readinessProbe": {
+                    "description": "Configure the readiness probe using Deployment probe spec",
+                    "type": "object",
+                    "properties": {
+                        "httpGet": {
+                            "type": "object",
+                            "properties": {
+                                "path": {
+                                    "type": "string"
+                                },
+                                "port": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "replicaCount": {
+                    "description": "Amount of replicas",
+                    "type": "integer"
+                },
+                "resources": {
+                    "description": "Set the resource requests/limits",
+                    "type": "object"
+                },
+                "securityContext": {
+                    "description": "Set the securityContext for the container",
+                    "type": "object",
+                    "properties": {
+                        "allowPrivilegeEscalation": {
+                            "type": "boolean"
+                        },
+                        "capabilities": {
+                            "type": "object",
+                            "properties": {
+                                "drop": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        },
+                        "enabled": {
+                            "type": "boolean"
+                        },
+                        "readOnlyRootFilesystem": {
+                            "type": "boolean"
+                        },
+                        "runAsNonRoot": {
+                            "type": "boolean"
+                        },
+                        "runAsUser": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "tolerations": {
+                    "description": "Set list of tolerations",
+                    "type": "array"
+                },
+                "topologySpreadConstraints": {
+                    "description": "Set topology spread constraints",
+                    "type": "array"
+                }
+            }
+        },
+        "metrics": {
+            "type": "object",
+            "properties": {
+                "serviceMonitor": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "description": "Create a Prometheus Operator ServiceMonitor for the controller's HTTP metrics",
+                            "type": "boolean"
+                        },
+                        "interval": {
+                            "description": "Scrape interval",
+                            "type": "string"
+                        },
+                        "labels": {
+                            "description": "Additional ServiceMonitor labels",
+                            "type": "object"
+                        }
+                    }
+                }
+            }
+        },
+        "nameOverride": {
+            "type": "string"
+        },
+        "rbac": {
+            "type": "object",
+            "properties": {
+                "create": {
+                    "description": "Create the controller ClusterRole and binding",
+                    "type": "boolean"
+                },
+                "extraRules": {
+                    "description": "Additional controller permissions for fallback execution; prefer explicit template executors",
+                    "type": "array"
+                },
+                "requester": {
+                    "type": "object",
+                    "properties": {
+                        "create": {
+                            "description": "Create a role for requesting and reviewing permits; bind it explicitly",
+                            "type": "boolean"
+                        },
+                        "labels": {
+                            "description": "Optional requester role labels, such as aggregation into the Kubernetes admin role",
+                            "type": "object"
+                        }
+                    }
+                }
+            }
+        },
+        "serviceAccount": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "description": "Annotations to add to the service account.",
+                    "type": "object"
+                },
+                "create": {
+                    "description": "Specifies whether a service account should be created.",
+                    "type": "boolean"
+                },
+                "imagePullSecrets": {
+                    "description": "Image pull secrets for the service account.",
+                    "type": "array"
+                },
+                "name": {
+                    "description": "The name of the service account to use.",
+                    "type": "string"
+                }
+            }
+        },
+        "webhooks": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "description": "Additional Annotations for all webhooks",
+                    "type": "object"
+                },
+                "certificate": {
+                    "type": "object",
+                    "properties": {
+                        "generate": {
+                            "type": "object",
+                            "properties": {
+                                "dnsNames": {
+                                    "description": "Additional DNS Names to include in certificate",
+                                    "type": "array"
+                                },
+                                "duration": {
+                                    "description": "Duration of validity for the CA certificate (e.g. 2160h for 90 days)",
+                                    "type": "string"
+                                },
+                                "enabled": {
+                                    "description": "Enable cert-manager generated certificates for the webhook service",
+                                    "type": [
+                                        "boolean",
+                                        "string"
+                                    ]
+                                },
+                                "ipAddresses": {
+                                    "description": "Additional IP Addresses to include in certificate",
+                                    "type": "array"
+                                },
+                                "renewBefore": {
+                                    "description": "Renew the CA certificate before its expiration time (e.g. 360h for 15 days)",
+                                    "type": "string"
+                                },
+                                "uris": {
+                                    "description": "Additional URIs to include in certificate",
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "secret": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "description": "Name of the secret containing the TLS certificate for the webhook service",
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                },
+                "enabled": {
+                    "description": "Specifies whether the admission webhooks are enabled",
+                    "type": [
+                        "boolean",
+                        "string"
+                    ]
+                },
+                "exclusive": {
+                    "description": "When `crds.exclusive` is `true` the webhooks will be installed",
+                    "type": [
+                        "boolean",
+                        "string"
+                    ]
+                },
+                "hooks": {
+                    "type": "object",
+                    "properties": {
+                        "globalresourcepermittemplates": {
+                            "type": "object",
+                            "properties": {
+                                "failurePolicy": {
+                                    "type": "string"
+                                },
+                                "matchConditions": {
+                                    "type": "array"
+                                },
+                                "matchPolicy": {
+                                    "type": "string"
+                                },
+                                "namespaceSelector": {
+                                    "type": "object"
+                                },
+                                "objectSelector": {
+                                    "type": "object"
+                                },
+                                "rules": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "apiGroups": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "apiVersions": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "operations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "resources": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "scope": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "timeoutSeconds": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ]
+                                }
+                            }
+                        },
+                        "resourcepermits": {
+                            "type": "object",
+                            "properties": {
+                                "failurePolicy": {
+                                    "type": "string"
+                                },
+                                "matchConditions": {
+                                    "type": "array"
+                                },
+                                "matchPolicy": {
+                                    "type": "string"
+                                },
+                                "namespaceSelector": {
+                                    "type": "object",
+                                    "properties": {
+                                        "matchExpressions": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "key": {
+                                                        "type": "string"
+                                                    },
+                                                    "operator": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "objectSelector": {
+                                    "type": "object"
+                                },
+                                "rules": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "apiGroups": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "apiVersions": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "operations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "resources": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "scope": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "timeoutSeconds": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ]
+                                }
+                            }
+                        },
+                        "resourcepermitsMutating": {
+                            "type": "object",
+                            "properties": {
+                                "failurePolicy": {
+                                    "type": "string"
+                                },
+                                "matchConditions": {
+                                    "type": "array"
+                                },
+                                "matchPolicy": {
+                                    "type": "string"
+                                },
+                                "namespaceSelector": {
+                                    "type": "object",
+                                    "properties": {
+                                        "matchExpressions": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "key": {
+                                                        "type": "string"
+                                                    },
+                                                    "operator": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "objectSelector": {
+                                    "type": "object"
+                                },
+                                "rules": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "apiGroups": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "apiVersions": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "operations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "resources": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "scope": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "timeoutSeconds": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ]
+                                }
+                            }
+                        },
+                        "resourcepermittemplates": {
+                            "type": "object",
+                            "properties": {
+                                "failurePolicy": {
+                                    "type": "string"
+                                },
+                                "matchConditions": {
+                                    "type": "array"
+                                },
+                                "matchPolicy": {
+                                    "type": "string"
+                                },
+                                "namespaceSelector": {
+                                    "type": "object",
+                                    "properties": {
+                                        "matchExpressions": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "key": {
+                                                        "type": "string"
+                                                    },
+                                                    "operator": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "objectSelector": {
+                                    "type": "object"
+                                },
+                                "rules": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "apiGroups": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "apiVersions": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "operations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "resources": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "scope": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "timeoutSeconds": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ]
+                                }
+                            }
+                        },
+                        "resources": {
+                            "type": "object",
+                            "properties": {
+                                "failurePolicy": {
+                                    "type": "string"
+                                },
+                                "matchConditions": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "expression": {
+                                                "type": "string"
+                                            },
+                                            "name": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "matchPolicy": {
+                                    "type": "string"
+                                },
+                                "namespaceSelector": {
+                                    "type": "object",
+                                    "properties": {
+                                        "matchExpressions": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "key": {
+                                                        "type": "string"
+                                                    },
+                                                    "operator": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "objectSelector": {
+                                    "type": "object"
+                                },
+                                "rules": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "apiGroups": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "apiVersions": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "operations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "resources": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "scope": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "timeoutSeconds": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ]
+                                }
+                            }
+                        },
+                        "serviceaccounts": {
+                            "type": "object",
+                            "properties": {
+                                "failurePolicy": {
+                                    "type": "string"
+                                },
+                                "matchConditions": {
+                                    "type": "array"
+                                },
+                                "matchPolicy": {
+                                    "type": "string"
+                                },
+                                "namespaceSelector": {
+                                    "type": "object",
+                                    "properties": {
+                                        "matchExpressions": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "key": {
+                                                        "type": "string"
+                                                    },
+                                                    "operator": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "objectSelector": {
+                                    "type": "object"
+                                },
+                                "rules": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "apiGroups": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "apiVersions": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "operations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "resources": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "scope": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "timeoutSeconds": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "labels": {
+                    "description": "Additional Labels for all webhooks",
+                    "type": "object"
+                },
+                "service": {
+                    "type": "object",
+                    "properties": {
+                        "caBundle": {
+                            "description": "CABundle for the webhook service",
+                            "type": "string"
+                        },
+                        "name": {
+                            "description": "Custom service name for the webhook service",
+                            "type": "string"
+                        },
+                        "namespace": {
+                            "description": "Custom service namespace for the webhook service",
+                            "type": "string"
+                        },
+                        "port": {
+                            "description": "(integer, null) Custom service port for the webhook service",
+                            "type": [
+                                "integer",
+                                "string",
+                                "null"
+                            ]
+                        },
+                        "url": {
+                            "description": "The URL where the controller webhook services are running (Overwrites cluster scoped service definition)",
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

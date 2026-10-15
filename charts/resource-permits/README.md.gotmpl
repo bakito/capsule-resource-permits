@@ -1,0 +1,316 @@
+# Resource Permits
+
+Kubernetes approval workflows and managed resource lifecycles, as a Project Capsule addon.
+Runs independently of the Capsule controller and its CRDs. The chart follows the
+Change Windows layout; cert-manager manages serving certificates by default.
+
+## Installation
+
+Install [cert-manager](https://cert-manager.io/docs/installation/helm/) first, or
+supply your own serving certificate as described below. Build and publish an image
+through `task image:push`, then install from a checkout:
+
+```sh
+helm upgrade --install resource-permits ./charts/resource-permits \
+  --namespace resource-permits-system --create-namespace \
+  --set manager.image.registry=ghcr.io \
+  --set manager.image.repository=projectcapsule/resource-permits \
+  --set manager.image.tag=VERSION
+```
+
+After a chart version is published, use
+`oci://ghcr.io/projectcapsule/charts/resource-permits --version VERSION` instead
+of the local chart path. Review CRD changes before each upgrade. The default
+CRD lifecycle hook applies the bundled CRDs on install and upgrade.
+
+## Controller identity and execution
+
+The chart creates a dedicated ServiceAccount. Its default RBAC covers the addon,
+namespace discovery, events, and impersonation; it does not grant arbitrary
+workload management. Every template must set `spec.impersonation` with narrowly scoped
+RBAC for the context and resources it uses. The controller must be trusted: its
+ability to impersonate execution identities is privileged.
+
+The execution-client cache reset interval is configured through Helm values:
+
+```yaml
+manager:
+  clientCacheInvalidation: 1h
+```
+
+Every template must explicitly set `spec.impersonation`. A
+`ResourcePermitTemplate` specifies a ServiceAccount name in its own namespace;
+a `GlobalResourcePermitTemplate` specifies both name and namespace. Give that
+ServiceAccount only the permissions needed by the template. The CRD and admission
+reject missing references, and the controller never supplies a fallback executor.
+
+Before upgrading, add explicit identities to existing templates. Remove the old
+default-executor Helm values and startup flags from your deployment configuration.
+Already prepared requests retain their recorded executor until cleanup finishes.
+
+All identities follow the permit deletion lifecycle, including Kubernetes
+administrators: expire active permits first and respect archive retention.
+Namespace termination allows cleanup regardless of lifecycle phase or retention;
+finalizers remain until managed-resource cleanup succeeds.
+Settings are startup flags, so a Helm upgrade rolls out the new configuration.
+The addon owns its impersonation client cache. ServiceAccount events invalidate
+individual clients, and the configured interval resets the cache periodically.
+
+## Running alongside Capsule
+
+The addon does not watch Capsule CRDs or read CapsuleConfiguration, and its
+controller role includes no Capsule-specific permissions. Templates can still
+manage Capsule resources when their explicit executor has the required RBAC.
+
+Avoid managing the same target through both a permit and Capsule replication.
+Without authoritative replication ownership lookups, shared SSA cleanup stops
+with `replication owner resolver is not configured`, retaining the target,
+protection, and permit finalizer. `Orphan` can leave replication managed fields
+behind after its parent is deleted, so deleting that parent alone may not unblock
+cleanup. Resolve overlapping ownership through the owning controller and an
+authorized executor before expecting permit cleanup to finish.
+
+The addon identity and its executors must also satisfy Capsule's own admission
+rules when operating in tenant namespaces. Configure their Capsule authorization
+separately where needed. Requester role aggregation is opt-in through
+`rbac.requester.labels`.
+
+### Migrating an existing installation
+
+Remove the obsolete Capsule configuration/integration, administrator, and default
+executor values and startup flags. Set `spec.impersonation` on every template;
+there is no administrator deletion bypass. Capsule changes no longer propagate
+to the addon. Execution clients use the controller's Kubernetes endpoint and TLS
+configuration; Capsule's custom impersonation endpoint/CA overrides are not inherited.
+
+The default ServiceAccount also changes from `capsule` to a dedicated identity.
+To preserve an existing deployment's identity and outstanding execution snapshots,
+set `serviceAccount.create=false` and `serviceAccount.name=capsule` explicitly in
+its existing namespace. Plan any later identity migration with the required RBAC
+and admission permissions in place; keep recorded executors available through cleanup.
+
+## Admission configuration
+
+Admission uses the same `webhooks.hooks` layout as Change Windows. Each hook exposes
+`rules`, `namespaceSelector`, `objectSelector`, `matchConditions`, `failurePolicy`,
+`timeoutSeconds`, and `matchPolicy`:
+
+| Hook | Endpoint |
+| --- | --- |
+| `resources` | Protect resources managed by permits; retains the protection-label CEL filter. |
+| `resourcepermits` | Validate requests, status transitions, and deletion. |
+| `resourcepermitsMutating` | Default requests and authenticate lifecycle transitions. |
+| `resourcepermittemplates` | Validate namespaced templates. |
+| `globalresourcepermittemplates` | Validate cluster-scoped templates. |
+| `serviceaccounts` | Protect executors referenced by unexpired permits. |
+
+All namespaced hooks preselect Capsule tenant namespaces by default:
+
+```yaml
+namespaceSelector:
+  matchExpressions:
+    - key: capsule.clastix.io/tenant
+      operator: Exists
+```
+
+These filters run in the API server before admission. They do not restrict the
+controller's reconciliation or authorize access to permits. Grant request/review
+RBAC only where the corresponding admission hooks are enabled. The default can
+exclude executors in infrastructure namespaces and targets outside tenant namespaces;
+include those namespaces when their protection is required.
+
+Cluster-scoped templates remain validated. The resource protection hook also
+matches cluster-scoped targets. Namespace selectors do not exclude cluster-scoped
+resources other than Namespace objects, which are matched against their own labels. See the
+[Kubernetes admission reference](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#matching-requests-namespaceselector).
+
+### Standalone and non-tenant namespaces
+
+Provide your own expressions for **all five namespaced hooks** when operating
+outside Capsule tenants. To include all namespaces:
+
+```yaml
+webhooks:
+  hooks:
+    resources:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermits:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermitsMutating:
+      namespaceSelector:
+        matchExpressions: []
+    resourcepermittemplates:
+      namespaceSelector:
+        matchExpressions: []
+    serviceaccounts:
+      namespaceSelector:
+        matchExpressions: []
+```
+
+Alternatively, replace each list with your own `In`, `NotIn`, or `Exists` expression.
+For example, `key: permits.example.com/enabled, operator: Exists` selects namespaces
+labelled by your platform. Apply the same policy to request mutation and validation.
+The standalone playground and e2e values explicitly remove the tenant expression.
+
+Helm replaces lists but merges maps. `namespaceSelector: {}` alone does **not**
+remove the default expression. Use `matchExpressions: []` or replace the list, and
+clear any `matchLabels` constraints supplied by your other values files.
+
+Webhooks fail closed by default. ServiceAccount reference checks preserve their
+existing `failurePolicy: Ignore`; set `webhooks.hooks.serviceaccounts.failurePolicy`
+to `Fail` if admission outages must also block executor deletion. Keep the built-in
+resource protection `matchConditions` when adding your own conditions.
+
+### Templating and external admission
+
+String values and map keys throughout `webhooks` support Helm templates using the
+root context, including `.Release` and `.Values`. Boolean settings must render to
+`true` or `false`; service ports and hook timeouts must render to integers. Keep
+maps and lists as YAML structures. Values are evaluated once at Helm render time.
+
+```yaml
+webhooks:
+  annotations:
+    example.com/release: '{{ "{{ .Release.Name }}" }}'
+  hooks:
+    resourcepermits:
+      timeoutSeconds: '{{ "{{ add 5 5 }}" }}'
+      matchConditions:
+        - name: exclude-controller-namespace
+          expression: 'request.namespace != {{ "{{ .Release.Namespace | quote }}" }}'
+```
+
+`webhooks.service` supports a custom service name, namespace, and port, or an HTTPS
+`url` for a controller outside the cluster. A URL replaces service references;
+each route path is appended to it. Supply its CA in `webhooks.service.caBundle`.
+`crds.exclusive=true` installs only CRDs; combine it with `webhooks.exclusive=true`
+to install admission configurations for an external controller.
+
+## Certificates
+
+`webhooks.certificate.generate.enabled=true` creates a cert-manager Issuer and
+Certificate. CA injection populates the admission configurations. Configure
+additional SANs, certificate duration, and renewal through
+`webhooks.certificate.generate`. Certificates are mounted from
+`webhooks.certificate.secret.name`, defaulting to `<release>-tls`.
+
+For an existing TLS Secret, use:
+
+```yaml
+webhooks:
+  certificate:
+    generate:
+      enabled: false
+    secret:
+      name: resource-permits-serving-tls
+  service:
+    caBundle: BASE64_ENCODED_CA_CERTIFICATE
+```
+
+The Secret must contain `tls.crt` and `tls.key`, and the certificate must cover the
+configured webhook service DNS name. Manage renewal and CA updates externally.
+The controller still needs serving certificates when `webhooks.enabled=false`;
+that switch only disables registration and chart-managed certificate resources.
+
+## CRD lifecycle
+
+`crds.install=true` enables a pre-install/pre-upgrade hook, with its own ServiceAccount,
+RBAC, ConfigMaps, and kubectl Job under `templates/hooks/crd-lifecycle/`. Its RBAC
+can update only this addon's three CRDs. Helm installs bundled CRDs first on a new
+release; do not use `--skip-crds` with hook mode on an empty cluster. The hook uses
+server-side apply and force-conflicts to make this chart authoritative for its CRDs.
+Hook Pods use `global.jobs.kubectl` scheduling, image, and security settings.
+
+`crds.inline=true` renders CRDs as release resources instead; use `--skip-crds` in
+this mode. `crds.keep=true` retains them on uninstall. `crds.install=false` disables
+both lifecycle paths; also pass `--skip-crds` to leave CRDs entirely externally
+managed. Local `dev:deploy` uses inline mode to avoid an extra kubectl Job image.
+
+## Deployment and metrics
+
+Image, replicas, resources, probes, security contexts, labels, annotations,
+scheduling, environment, and extra arguments live under `manager`. Set
+`manager.image.reference` to use a complete image reference, including a digest.
+`serviceAccount` configures identity annotations and image pull secrets.
+The manager role is generated from controller RBAC markers into `files/manager-role.yaml`.
+
+The chart creates an internal HTTP metrics Service on port 8080. Enable
+`metrics.serviceMonitor.enabled` when Prometheus Operator CRDs are installed.
+Metrics are not authenticated; restrict access with cluster networking policy where
+needed. Kind development uses `manager.hostUsers=true` for compatibility with its
+container runtime; the chart otherwise follows Change Windows' user namespace setting.
+
+## Migrating earlier chart values
+
+| Earlier key | Replacement |
+| --- | --- |
+| `image.repository` (including registry), `image.tag` | `manager.image.reference`, or separate `manager.image.registry`, `repository`, and `tag` |
+| `image.pullPolicy` | `manager.image.pullPolicy` |
+| `replicaCount`, `resources`, `nodeSelector`, `tolerations` | Corresponding fields under `manager` |
+| `tls.existingSecret` | `webhooks.certificate.secret.name`, with generation disabled |
+| `tls.caBundle` | `webhooks.service.caBundle` |
+| `webhooks.failurePolicy`, `webhooks.timeoutSeconds` | Corresponding fields on each `webhooks.hooks` entry |
+| `webhooks.referencesFailurePolicy` | `webhooks.hooks.serviceaccounts.failurePolicy` |
+
+Existing controller and admission configuration names are preserved. The default
+Secret name changes from `<release>-webhook-tls` to `<release>-tls`; keep the old
+Secret name and supply its CA if migrating without cert-manager. Preserve the
+existing executor identity for prepared permits. Existing installations that need
+all-namespace admission must apply the standalone override above during upgrade.
+Use hook mode for existing CRDs, or explicitly adopt their Helm ownership before
+switching to inline mode; do not take ownership of CRDs managed by another release.
+
+## Uninstall
+
+Finish outstanding permit cleanup before removing the controller:
+
+```sh
+helm uninstall resource-permits --namespace resource-permits-system
+```
+
+Helm retains CRDs and their custom resources. Removing the controller while
+finalizers remain can leave managed resources awaiting cleanup.
+
+## Values
+
+### Global jobs
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+{{- range .Values }}
+{{- if hasPrefix "global" .Key }}
+| {{ .Key }} | {{ .Type }} | {{ if .Default }}{{ .Default }}{{ else }}{{ .AutoDefault }}{{ end }} | {{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }} |
+{{- end }}
+{{- end }}
+
+### CRD lifecycle
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+{{- range .Values }}
+{{- if hasPrefix "crds" .Key }}
+| {{ .Key }} | {{ .Type }} | {{ if .Default }}{{ .Default }}{{ else }}{{ .AutoDefault }}{{ end }} | {{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }} |
+{{- end }}
+{{- end }}
+
+### Controller, identity, and admission
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+{{- range .Values }}
+{{- if not (or (hasPrefix "global" .Key) (hasPrefix "crds" .Key) (hasPrefix "metrics" .Key)) }}
+| {{ .Key }} | {{ .Type }} | {{ if .Default }}{{ .Default }}{{ else }}{{ .AutoDefault }}{{ end }} | {{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }} |
+{{- end }}
+{{- end }}
+
+### Metrics
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+{{- range .Values }}
+{{- if hasPrefix "metrics" .Key }}
+| {{ .Key }} | {{ .Type }} | {{ if .Default }}{{ .Default }}{{ else }}{{ .AutoDefault }}{{ end }} | {{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }} |
+{{- end }}
+{{- end }}

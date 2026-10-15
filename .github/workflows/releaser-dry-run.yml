@@ -1,0 +1,33 @@
+name: GoReleaser Dry Run
+on:
+  pull_request:
+    paths:
+      - '.github/actions/**'
+      - '.github/workflows/releaser*.yml'
+      - '.goreleaser.yml'
+      - 'Taskfile.yml'
+      - 'devbox.*'
+      - 'api/**'
+      - 'pkg/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'headlamp/**'
+      - 'go.*'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+      - name: Validate and build release artifacts
+        run: devbox run -- task release:snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,79 @@
+name: Publish images with ko
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  publish-images:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.image.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/setup
+      - name: Scan release source
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Validate release version
+        id: version
+        run: |
+          : "${GITHUB_REF_NAME:?GITHUB_REF_NAME is required}"
+          version=${GITHUB_REF_NAME#v}
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo 'Release tag must be vMAJOR.MINOR.PATCH with an optional prerelease' >&2
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
+      - name: Authenticate registry
+        run: devbox run -- task registry:login
+        env:
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish controller and SBOMs
+        id: image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          REPOSITORY: ${{ github.repository_owner }}/resource-permits
+        run: |
+          ref=$(devbox run -- task image:push)
+          if [[ ! "$ref" =~ ^[^[:space:]@]+@sha256:[a-f0-9]{64}$ ]]; then
+            echo 'Expected one immutable published image reference' >&2
+            exit 1
+          fi
+          image=${ref%@*}
+          printf 'image=%s\ndigest=%s\n' "$image" "${ref##*@}" >> "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
+      - name: Sign published image
+        run: devbox run -- task image:sign
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.image }}@${{ steps.image.outputs.digest }}
+  provenance:
+    needs: publish-images
+    permissions:
+      id-token: write
+      packages: write
+      actions: read
+    # SLSA requires a full release tag; check-actions.yml allows this exception.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      # Private repositories must explicitly opt in to publishing metadata to Rekor.
+      private-repository: ${{ vars.SLSA_PUBLIC_PROVENANCE == 'true' }}
+      image: ${{ needs.publish-images.outputs.image }}
+      digest: ${{ needs.publish-images.outputs.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}

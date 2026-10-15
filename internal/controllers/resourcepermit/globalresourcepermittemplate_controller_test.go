@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	capsulev1beta2 "github.com/projectcapsule/capsule/api/v1beta2"
+	"github.com/projectcapsule/capsule/pkg/api/meta"
 	"github.com/projectcapsule/capsule/pkg/runtime/selectors"
 )
 
@@ -60,6 +61,7 @@ func TestGlobalResourcePermitTemplateReconciler(t *testing.T) {
 				Name: "template", Generation: 4,
 				Spec: permitsv1beta2.GlobalResourcePermitTemplateSpec{
 					NamespaceSelectors: tt.selectors,
+					Impersonation:      &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: "runner", Namespace: "operations"},
 				},
 			}
 			cl := fake.NewClientBuilder().

@@ -75,7 +75,7 @@ func (h *resourcePermitResourceHandler) handle(
 		return nil
 	}
 
-	deny := ad.Deny("resources protected by a ResourcePermit can only be changed by the Capsule controller or the template ServiceAccount")
+	deny := ad.Deny("resources protected by a ResourcePermit can only be changed by the Resource Permits controller or the template ServiceAccount")
 	if decoder == nil {
 		return deny
 	}

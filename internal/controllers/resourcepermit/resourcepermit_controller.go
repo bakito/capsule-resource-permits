@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -111,7 +112,7 @@ type ResourcePermitReconciler struct {
 	Log       logr.Logger
 	resources ssa.Manager
 
-	Configuration      configuration.Configuration
+	RESTConfig         *rest.Config
 	ImpersonationCache *cache.ImpersonationCache
 }
 
@@ -123,16 +124,15 @@ func (r *ResourcePermitReconciler) SetupWithManager(mgr ctrl.Manager, _ utils.Co
 		mgr.GetClient(),
 		r.Log.WithName("events"),
 		mgr.GetEventRecorder(controllerName),
-		r.Configuration,
+		nil, // Lifecycle events always concern namespaced ResourcePermits.
 	)
 	if r.ImpersonationCache == nil {
 		r.ImpersonationCache = cache.NewImpersonationCache()
 	}
 
 	r.resources = ssa.Manager{
-		ReplicationOwners: ssa.NewReplicationOwnerResolver(mgr.GetClient(), mgr.GetAPIReader()),
-		Reader:            mgr.GetAPIReader(),
-		Mapper:            mgr.GetRESTMapper(),
+		Reader: mgr.GetAPIReader(),
+		Mapper: mgr.GetRESTMapper(),
 		Metadata: ssa.Metadata{
 			CreatedByValue:                      permitmeta.ValueControllerResourcePermit,
 			ManagedByValue:                      permitmeta.ValueControllerResourcePermit,
@@ -1345,16 +1345,16 @@ func (r *ResourcePermitReconciler) resourceClient(
 			serviceAccount = r.resolveTemplateServiceAccount(log, brt)
 		}
 
-		if serviceAccount == nil {
-			controllerName, controllerNamespace := configuration.ControllerServiceAccount()
-			serviceAccount = &meta.NamespacedRFC1123ObjectReferenceWithNamespace{
-				Name:      meta.RFC1123Name(controllerName),
-				Namespace: meta.RFC1123SubdomainName(controllerNamespace),
-			}
+		if serviceAccount == nil || serviceAccount.Name == "" || serviceAccount.Namespace == "" {
+			return nil, errors.New("template must specify a ServiceAccount in spec.impersonation")
 		}
 
 		resolved := *serviceAccount
 		br.Status.Request.Impersonation = &resolved
+	}
+
+	if serviceAccount.Name == "" || serviceAccount.Namespace == "" {
+		return nil, errors.New("recorded execution ServiceAccount must have a name and namespace")
 	}
 
 	controllerName, controllerNamespace := configuration.ControllerServiceAccount()
@@ -1374,13 +1374,8 @@ func (r *ResourcePermitReconciler) resourceClient(
 		return cached, nil
 	}
 
-	if r.Configuration == nil {
-		return nil, errors.New("capsule configuration is required for service account impersonation")
-	}
-
-	restConfig, err := r.Configuration.ServiceAccountClient(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load impersonation REST configuration: %w", err)
+	if r.RESTConfig == nil {
+		return nil, errors.New("impersonation REST configuration is not configured")
 	}
 
 	log.V(5).Info(
@@ -1392,7 +1387,7 @@ func (r *ResourcePermitReconciler) resourceClient(
 	resourceClient, err := r.ImpersonationCache.LoadOrCreate(
 		ctx,
 		log,
-		restConfig,
+		r.RESTConfig,
 		r.Scheme(),
 		*serviceAccount,
 	)
@@ -1425,63 +1420,15 @@ func (r *ResourcePermitReconciler) resolveTemplateServiceAccount(
 			}
 		}
 
-		if r.Configuration == nil {
-			return nil
-		}
-
-		name := r.Configuration.ServiceAccountClientProperties().TenantDefaultServiceAccount
-		if name == "" {
-			return nil
-		}
-
-		return &meta.NamespacedRFC1123ObjectReferenceWithNamespace{
-			Name:      name,
-			Namespace: meta.RFC1123SubdomainName(template.Namespace),
-		}
+		return nil
 	case *permitsv1beta2.GlobalResourcePermitTemplate:
 		if template == nil {
 			return nil
 		}
 
-		return r.resolveGlobalTemplateServiceAccount(log, template)
+		return template.Spec.Impersonation.DeepCopy()
 	default:
 		return nil
-	}
-}
-
-func (r *ResourcePermitReconciler) resolveGlobalTemplateServiceAccount(
-	log logr.Logger,
-	brt *permitsv1beta2.GlobalResourcePermitTemplate,
-) *meta.NamespacedRFC1123ObjectReferenceWithNamespace {
-	if brt.Spec.Impersonation != nil {
-		return brt.Spec.Impersonation.DeepCopy()
-	}
-
-	if r.Configuration == nil {
-		return nil
-	}
-
-	properties := r.Configuration.ServiceAccountClientProperties()
-	name := properties.GlobalDefaultServiceAccount.String()
-	namespace := properties.GlobalDefaultServiceAccountNamespace.String()
-
-	if (name == "") != (namespace == "") {
-		log.V(2).Info(
-			"global default impersonation ServiceAccount requires both name and namespace",
-			"name", name,
-			"namespace", namespace,
-		)
-
-		return nil
-	}
-
-	if name == "" {
-		return nil
-	}
-
-	return &meta.NamespacedRFC1123ObjectReferenceWithNamespace{
-		Name:      properties.GlobalDefaultServiceAccount,
-		Namespace: properties.GlobalDefaultServiceAccountNamespace,
 	}
 }
 

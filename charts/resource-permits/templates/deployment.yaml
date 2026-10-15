@@ -1,0 +1,107 @@
+{{- $values := omit .Values "webhooks" -}}
+{{- $_ := set $values "webhooks" (include "resource-permits.webhooks.renderValue" (dict "value" .Values.webhooks "ctx" $ "path" "webhooks") | mustFromJson) -}}
+{{- $ := set (omit . "Values") "Values" $values -}}
+{{- with $ }}
+{{- if not .Values.crds.exclusive }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "resource-permits.fullname" $ }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resource-permits.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ .Values.manager.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "resource-permits.selectorLabels" . | nindent 8 }}
+  template:
+    metadata:
+      annotations:
+      {{- with .Values.manager.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.crds.install }}
+        projectcapsule.dev/crds-size-hash: {{ include "resource-permits.crds.hash" . | quote }}
+      {{- end }}
+      labels:
+        {{- include "resource-permits.selectorLabels" . | nindent 8 }}
+        {{- with .Values.manager.podLabels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "resource-permits.serviceAccountName" . }}
+      {{- if $.Values.manager.podSecurityContext.enabled }}
+      securityContext: {{- omit $.Values.manager.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      priorityClassName: {{ .Values.manager.priorityClassName }}
+      {{- with .Values.manager.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if not .Values.manager.hostUsers }}
+      hostUsers: {{ .Values.manager.hostUsers }}
+      {{- end }}
+      containers:
+      - name: manager
+        image: {{ default (printf "%s/%s:%s" .Values.manager.image.registry .Values.manager.image.repository (.Values.manager.image.tag | default .Chart.AppVersion)) .Values.manager.image.reference | quote }}
+        imagePullPolicy: {{ .Values.manager.image.pullPolicy }}
+        args:
+        - --metrics-bind-address=:8080
+        - --health-probe-bind-address=:8081
+        - --client-cache-invalidation={{ .Values.manager.args.cacheInvalidation }}
+        - --workers={{ .Values.manager.args.workers }}
+        - --kube-api-qps={{ .Values.manager.args.kubeApiQPS }}
+        - --kube-api-burst={{ .Values.manager.args.kubeApiBurst }}
+        {{- with .Values.manager.args.extra }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
+        {{- with .Values.manager.env }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        ports:
+        - name: webhook
+          containerPort: 9443
+        - name: metrics
+          containerPort: 8080
+        {{- if $.Values.manager.securityContext.enabled }}
+        securityContext: {{- omit $.Values.manager.securityContext "enabled" | toYaml | nindent 10 }}
+        {{- end }}
+        livenessProbe:
+          {{- toYaml .Values.manager.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.manager.readinessProbe | nindent 10 }}
+        resources:
+          {{- toYaml .Values.manager.resources | nindent 10 }}
+        volumeMounts:
+        - name: webhook-cert
+          mountPath: /tmp/k8s-webhook-server/serving-certs
+          readOnly: true
+      volumes:
+      - name: webhook-cert
+        secret:
+          secretName: {{ include "resource-permits.webhooks.secret" $ | quote }}
+{{- end }}
+{{- end }}

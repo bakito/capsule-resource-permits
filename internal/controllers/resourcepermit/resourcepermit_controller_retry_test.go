@@ -27,16 +27,17 @@ import (
 	"github.com/projectcapsule/capsule/pkg/api/meta"
 	capsulerbac "github.com/projectcapsule/capsule/pkg/api/rbac"
 	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
+	"github.com/projectcapsule/capsule/pkg/runtime/configuration"
 
 	"github.com/projectcapsule/resource-permits/pkg/api/resourcepermit"
 )
 
 func TestResourcePermitActivationRetry(t *testing.T) {
-	t.Parallel()
+	t.Setenv(configuration.EnvironmentServiceaccountName, "controller")
+	t.Setenv(configuration.EnvironmentControllerNamespace, "operations")
 
 	for _, finalizerPresent := range []bool{true, false} {
 		t.Run(fmt.Sprintf("finalizer present=%t", finalizerPresent), func(t *testing.T) {
-			t.Parallel()
 			ctx := context.Background()
 			scheme := runtime.NewScheme()
 			require.NoError(t, corev1.AddToScheme(scheme))
@@ -66,8 +67,9 @@ func TestResourcePermitActivationRetry(t *testing.T) {
 				},
 			}
 			require.NoError(t, permit.ApprovePermit(reviewer, &permitsv1beta2.ResourcePermitStatusRequest{
-				Approvals: &template.Spec.Approvals,
-				Resources: []apiruntime.RenderedResource{{Targets: []runtime.RawExtension{{Object: target.DeepCopy()}}}},
+				Approvals:     &template.Spec.Approvals,
+				Impersonation: controllerExecutorReference(),
+				Resources:     []apiruntime.RenderedResource{{Targets: []runtime.RawExtension{{Object: target.DeepCopy()}}}},
 			}, "approved before permissions were revoked"))
 			permit.SetReady(metav1.ConditionTrue, meta.SucceededReason, "preflight succeeded")
 			approvedReview := permit.Status.Review.DeepCopy()
@@ -129,4 +131,9 @@ func TestResourcePermitActivationRetry(t *testing.T) {
 			require.Equal(t, target.Data, actual.Data)
 		})
 	}
+}
+
+func controllerExecutorReference() *meta.NamespacedRFC1123ObjectReferenceWithNamespace {
+	name, namespace := configuration.ControllerServiceAccount()
+	return &meta.NamespacedRFC1123ObjectReferenceWithNamespace{Name: meta.RFC1123Name(name), Namespace: meta.RFC1123SubdomainName(namespace)}
 }

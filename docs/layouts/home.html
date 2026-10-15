@@ -1,0 +1,24 @@
+{{ define "main" }}
+<section class="section container-fluid mt-n3 pb-3">
+  <div class="row justify-content-center text-center"><div class="col-lg-9 col-xl-8">
+    <p class="text-muted text-uppercase small fw-semibold">A Project Capsule addon</p>
+    <h1>Kubernetes access.<br>With clear approvals.</h1>
+    <p class="lead my-4">Give teams a supported way to request platform resources.<br class="d-none d-lg-block"> Define templates, review requests, and manage their lifecycle.</p>
+    <div class="d-flex flex-wrap gap-3 justify-content-center">
+      <a class="btn btn-primary btn-cta rounded-pill btn-lg" href="{{ relref . "/docs/getting-started/installation" }}">Get started</a>
+      <a class="btn btn-outline-secondary rounded-pill btn-lg" href="{{ relref . "/docs/reference/api" }}">Explore the API</a>
+    </div>
+  </div></div>
+</section>
+<section class="section container py-4"><div class="row justify-content-center"><div class="col-lg-9 col-xl-8">{{ .Content }}</div></div></section>
+<section class="section container pt-4" aria-labelledby="try-a-permit" style="max-width: 1160px">
+  <div class="text-center mb-5">
+    <h2 id="try-a-permit">From template to approved resource</h2>
+    <p>Explore a template and the permit that uses it. Select a YAML block for an explanation.<br class="d-none d-lg-block"> On mobile, tap a block to open its guide.</p>
+  </div>
+  {{ range hugo.Data.permit_examples }}
+    {{ partial "permit-example.html" (dict "page" $ "example" .) }}
+  {{ end }}
+  <p class="text-center"><a href="{{ relref . "/docs/examples" }}">Explore the example walkthroughs →</a></p>
+</section>
+{{ end }}

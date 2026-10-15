@@ -11,10 +11,8 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/projectcapsule/capsule/pkg/api/meta"
-	"github.com/projectcapsule/capsule/pkg/api/rbac"
 	apiruntime "github.com/projectcapsule/capsule/pkg/api/runtime"
 	ad "github.com/projectcapsule/capsule/pkg/runtime/admission"
-	"github.com/projectcapsule/capsule/pkg/runtime/configuration"
 	"github.com/projectcapsule/capsule/pkg/runtime/events"
 	"github.com/projectcapsule/capsule/pkg/runtime/handlers"
 	"github.com/projectcapsule/capsule/pkg/users"
@@ -30,16 +28,14 @@ import (
 	"github.com/projectcapsule/resource-permits/pkg/api/resourcepermit"
 )
 
-func ResourcePermitValidationHandler(log logr.Logger, cfg configuration.Configuration) handlers.Handler {
+func ResourcePermitValidationHandler(log logr.Logger) handlers.Handler {
 	return &resourcePermitValidationHandler{
-		log:           log,
-		configuration: cfg,
+		log: log,
 	}
 }
 
 type resourcePermitValidationHandler struct {
-	log           logr.Logger
-	configuration configuration.Configuration
+	log logr.Logger
 }
 
 func (b *resourcePermitValidationHandler) OnCreate(_ client.Client, reader client.Reader, decoder admission.Decoder, _ events.EventRecorder) handlers.Func {
@@ -123,10 +119,6 @@ func (b *resourcePermitValidationHandler) OnDelete(
 		br := &permitsv1beta2.ResourcePermit{}
 		if err := decoder.DecodeRaw(req.OldObject, br); err != nil {
 			return ad.ErroredResponse(fmt.Errorf("failed to decode deleted object: %w", err))
-		}
-
-		if users.IsAdminUser(req, b.administrators()) {
-			return nil
 		}
 
 		namespace := req.Namespace
@@ -254,14 +246,6 @@ func (b *resourcePermitValidationHandler) OnUpdate(_ client.Client, reader clien
 
 		return nil
 	}
-}
-
-func (b *resourcePermitValidationHandler) administrators() rbac.UserListSpec {
-	if b.configuration == nil {
-		return nil
-	}
-
-	return b.configuration.Administrators()
 }
 
 func requestResources(br *permitsv1beta2.ResourcePermit) []apiruntime.RenderedResource {
