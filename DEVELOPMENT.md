@@ -88,6 +88,18 @@ release packaging without publishing. Release SBOMs require Syft; signing requir
 Cosign (installed by release workflows). `enterprise:release` and `enterprise:prerelease` accept
 `ENTERPRISE_VERSION`; preview them with `DRY_RUN=true`.
 
+`release` and `release:snapshot` default to `RELEASE_PARALLELISM=1` to reduce peak
+temporary disk use during cross-compilation. Override it on a runner with enough
+space, for example `task release:snapshot RELEASE_PARALLELISM=2`.
+
+CI retains Devbox's Nix-store cache and shares Go module downloads. Go compiler
+caches use separate build, test, e2e, and release scopes, including their restore
+prefixes, so releases do not restore race-test compiler outputs. ko layers are
+cached only by image and e2e jobs. The new cache keys do not restore the previous
+combined cache. GitHub's branch/tag cache-access restrictions still apply.
+Release and snapshot workflows report free disk space and inodes before setup,
+before compilation, and after completion or failure.
+
 GitHub workflows use the same Task targets and pinned shared Headlamp actions.
 Enable GitHub Pages with GitHub Actions before the first main-branch docs deploy.
 The intended docs URL is `https://resource-permits.addons.projectcapsule.dev/`;

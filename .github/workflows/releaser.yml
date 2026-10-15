@@ -19,12 +19,21 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Report disk availability before setup
+        run: |
+          df -h / /tmp
+          df -i / /tmp
       - uses: ./.github/actions/setup
+        with:
+          cache-scope: release
       - uses: creekorful/goreportcard-action@1f35ced8cdac2cba28c9a2f2288a16aacfd507f9 # v1.0
       - uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - name: Publish release artifacts
-        run: devbox run -- task release
+        run: |
+          df -h / /tmp
+          df -i / /tmp
+          devbox run -- task release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish Headlamp metadata
@@ -35,3 +44,8 @@ jobs:
           target-branch: headlamp-plugin
           node-version: '24.21.0'
           metadata-template: artifacthub-pkg.yml
+      - name: Report final disk availability
+        if: always()
+        run: |
+          df -h / /tmp
+          df -i / /tmp

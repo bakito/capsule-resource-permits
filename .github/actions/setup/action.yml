@@ -1,5 +1,12 @@
 name: Setup development tools
-description: Install the locked Devbox environment and restore Go and ko caches.
+description: Install the locked Devbox environment and restore scoped build caches.
+inputs:
+  cache-scope:
+    description: Namespace for the Go compiler cache, separate from shared module downloads.
+    default: build
+  cache-ko:
+    description: Restore and save the ko cache for jobs building controller images.
+    default: 'false'
 runs:
   using: composite
   steps:
@@ -15,11 +22,22 @@ runs:
         : "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
         printf 'build=%s\nmodules=%s\n' "$(devbox run -- go env GOCACHE)" "$(devbox run -- go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
         printf 'KO_CACHE=%s/ko-cache\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
-    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+    - name: Cache Go modules
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: |
-          ${{ steps.cache.outputs.build }}
-          ${{ steps.cache.outputs.modules }}
-          ${{ runner.temp }}/ko-cache
-        key: ${{ runner.os }}-${{ runner.arch }}-tools-${{ hashFiles('devbox.lock', '**/go.sum', '.ko.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-tools-
+        path: ${{ steps.cache.outputs.modules }}
+        key: ${{ runner.os }}-${{ runner.arch }}-go-modules-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-go-modules-
+    - name: Cache Go compiler outputs
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.cache.outputs.build }}
+        key: ${{ runner.os }}-${{ runner.arch }}-go-build-${{ inputs.cache-scope }}-${{ hashFiles('devbox.lock', '**/go.sum') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-go-build-${{ inputs.cache-scope }}-
+    - name: Cache ko layers
+      if: inputs.cache-ko == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/ko-cache
+        key: ${{ runner.os }}-${{ runner.arch }}-ko-${{ hashFiles('devbox.lock', '**/go.sum', '.ko.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-ko-

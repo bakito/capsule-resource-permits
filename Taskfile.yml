@@ -21,6 +21,7 @@ vars:
   CERT_MANAGER_VERSION: '{{.CERT_MANAGER_VERSION | default "v1.21.2"}}'
   KIND_NODE_IMAGE: '{{.KIND_NODE_IMAGE | default "kindest/node:v1.36.1"}}'
   GO_TEST_FLAGS: '{{.GO_TEST_FLAGS | default "-race"}}'
+  RELEASE_PARALLELISM: '{{.RELEASE_PARALLELISM | default "1"}}'
   ENTERPRISE_VERSION: '{{.ENTERPRISE_VERSION | default ""}}'
   ENTERPRISE_REGISTRY: '{{.ENTERPRISE_REGISTRY | default "registry.projectcapsule.dev"}}'
   DRY_RUN: '{{.DRY_RUN | default "false"}}'
@@ -631,15 +632,19 @@ tasks:
 
   release:snapshot:
     desc: Build release archives and SBOMs without publishing or signing.
+    env:
+      RELEASE_PARALLELISM: '{{.RELEASE_PARALLELISM}}'
     cmds:
       - task: release:check
-      - goreleaser release --snapshot --clean --skip=publish,sign --timeout 90m
+      - goreleaser release --snapshot --clean --skip=publish,sign --timeout 90m --parallelism "$RELEASE_PARALLELISM"
 
   release:
     desc: Publish a tagged GitHub release (explicit invocation only).
+    env:
+      RELEASE_PARALLELISM: '{{.RELEASE_PARALLELISM}}'
     cmds:
       - task: release:check
-      - goreleaser release --clean --timeout 90m
+      - goreleaser release --clean --timeout 90m --parallelism "$RELEASE_PARALLELISM"
 
   enterprise:release:
     desc: Publish the enterprise image and chart (use DRY_RUN=true to preview).
