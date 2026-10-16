@@ -6,21 +6,45 @@ Change Windows layout; cert-manager manages serving certificates by default.
 
 ## Installation
 
+[![Helm Chart](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/projectcapsule)](https://artifacthub.io/packages/helm/projectcapsule/resource-permits)
+
 Install [cert-manager](https://cert-manager.io/docs/installation/helm/) first, or
-supply your own serving certificate as described below. Build and publish an image
-through `task image:push`, then install from a checkout:
+supply your own serving certificate as described below. For standalone operation,
+save the [non-tenant namespace overrides](#standalone-and-non-tenant-namespaces) as
+`resource-permits-values.yaml`. Select the intended Kubernetes context, then install:
+
+```sh
+helm repo add projectcapsule https://projectcapsule.github.io/charts
+helm repo update projectcapsule
+
+helm upgrade --install resource-permits projectcapsule/resource-permits \
+  --namespace capsule-system --create-namespace \
+  --values resource-permits-values.yaml
+
+kubectl -n capsule-system rollout status deployment/resource-permits
+```
+
+Use `--version VERSION` to select a specific chart release. For an installation
+limited to Capsule tenant namespaces, omit the values file to keep the default
+admission selectors. The [installation guide](https://resource-permits.addons.projectcapsule.dev/docs/getting-started/installation/)
+covers prerequisites and execution permissions.
+
+### Install from a checkout
+
+Build and publish an image through `task image:push`, then install the local chart:
 
 ```sh
 helm upgrade --install resource-permits ./charts/resource-permits \
-  --namespace resource-permits-system --create-namespace \
+  --namespace capsule-system --create-namespace \
+  --values resource-permits-values.yaml \
   --set manager.image.registry=ghcr.io \
   --set manager.image.repository=projectcapsule/resource-permits \
   --set manager.image.tag=VERSION
 ```
 
-After a chart version is published, use
-`oci://ghcr.io/projectcapsule/charts/resource-permits --version VERSION` instead
-of the local chart path. Review CRD changes before each upgrade. The default
+For an OCI release, replace the local chart path with
+`oci://ghcr.io/projectcapsule/charts/resource-permits --version VERSION`.
+Review CRD changes before each upgrade. The default
 CRD lifecycle hook applies the bundled CRDs on install and upgrade.
 
 ## Controller identity and execution
@@ -35,7 +59,8 @@ The execution-client cache reset interval is configured through Helm values:
 
 ```yaml
 manager:
-  clientCacheInvalidation: 1h
+  args:
+    cacheInvalidation: 1h
 ```
 
 Every template must explicitly set `spec.impersonation`. A
@@ -74,20 +99,6 @@ The addon identity and its executors must also satisfy Capsule's own admission
 rules when operating in tenant namespaces. Configure their Capsule authorization
 separately where needed. Requester role aggregation is opt-in through
 `rbac.requester.labels`.
-
-### Migrating an existing installation
-
-Remove the obsolete Capsule configuration/integration, administrator, and default
-executor values and startup flags. Set `spec.impersonation` on every template;
-there is no administrator deletion bypass. Capsule changes no longer propagate
-to the addon. Execution clients use the controller's Kubernetes endpoint and TLS
-configuration; Capsule's custom impersonation endpoint/CA overrides are not inherited.
-
-The default ServiceAccount also changes from `capsule` to a dedicated identity.
-To preserve an existing deployment's identity and outstanding execution snapshots,
-set `serviceAccount.create=false` and `serviceAccount.name=capsule` explicitly in
-its existing namespace. Plan any later identity migration with the required RBAC
-and admission permissions in place; keep recorded executors available through cleanup.
 
 ## Admission configuration
 
@@ -267,7 +278,7 @@ switching to inline mode; do not take ownership of CRDs managed by another relea
 Finish outstanding permit cleanup before removing the controller:
 
 ```sh
-helm uninstall resource-permits --namespace resource-permits-system
+helm uninstall resource-permits --namespace capsule-system
 ```
 
 Helm retains CRDs and their custom resources. Removing the controller while
