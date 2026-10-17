@@ -25,7 +25,8 @@
     "openssl": "3.6.4",
     "lychee": "0.24.2",
     "fluxcd": "2.9.6",
-    "kubernetes-helmPlugins.helm-schema": "2.6.0"
+    "kubernetes-helmPlugins.helm-schema": "2.6.0",
+    "zizmor": "1.25.2"
   },
   "env": {
     "GOTOOLCHAIN": "local",

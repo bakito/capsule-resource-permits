@@ -239,6 +239,18 @@ tasks:
     cmds:
       - actionlint -pyflakes=''
 
+  lint:zizmor:
+    desc: Security-lint GitHub Actions workflows with zizmor.
+    aliases: [lint-zizmor]
+    cmds:
+      - zizmor .github/workflows/
+
+  lint:zizmor-fix:
+    desc: Security-lint GitHub Actions workflows with zizmor.
+    aliases: [lint-zizmor-fix]
+    cmds:
+      - zizmor .github/workflows/ --fix=all
+
   lint:files:
     desc: Run native prek file hygiene and syntax checks.
     cmds:
@@ -694,6 +706,7 @@ tasks:
       - task: lint:files
       - task: lint:yaml
       - task: lint:actions
+      - task: lint:zizmor
       - task: helm:lint
       - task: verify-generated
       - task: build

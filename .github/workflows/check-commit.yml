@@ -12,12 +12,16 @@ jobs:
   commit-lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Validate commit messages
-        run: devbox run -- task lint:commits
+        run: |
+          git config user.name "CI"
+          git config user.email "ci@example.com"
+          devbox run -- task lint:commits
         env:
           COMMIT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           COMMIT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
