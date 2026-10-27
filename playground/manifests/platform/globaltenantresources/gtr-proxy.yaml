@@ -1,7 +1,7 @@
 apiVersion: capsule.clastix.io/v1beta2
 kind: GlobalTenantResource
 metadata:
-  name: capsule-proxy-settings
+  name: resource-permits-proxy-settings
 spec:
   scope: Tenant
   resyncPeriod: 30s
@@ -31,39 +31,9 @@ spec:
                 {{- end }}
                 clusterResources:
                 - apiGroups:
-                  - ""
-                  resources:
-                  - "namespaces"
-                  operations:
-                  - List
-                  selector:
-                    matchLabels:
-                      capsule.clastix.io/tenant: {{ $.tenant.metadata.name }}
-                - apiGroups:
-                  - "capsule.clastix.io"
-                  resources:
-                  - "resourcepools"
-                  - "globalcustomquotas"
-                  - "globalresourcequotas"
-                  - "tenantowners"
-                  operations:
-                  - List
-                  selector:
-                    matchLabels:
-                      projectcapsule.dev/tenant: {{ $.tenant.metadata.name }}
-                - apiGroups:
                   - "addons.projectcapsule.dev"
                   resources:
                   - "globalresourcepermittemplates"
-                  operations:
-                  - List
-                  selector:
-                    matchLabels:
-                      company.com/consumer: "tenants"
-                - apiGroups:
-                  - "rbac.authorization.k8s.io"
-                  resources:
-                  - "clusterroles"
                   operations:
                   - List
                   selector:
