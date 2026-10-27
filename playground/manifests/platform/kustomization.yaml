@@ -3,5 +3,4 @@ kind: Kustomization
 resources:
   - rbac/
   - globalresourcepermittemplates/
-  - globaltenantresources/
   - resourcepermittemplates/
