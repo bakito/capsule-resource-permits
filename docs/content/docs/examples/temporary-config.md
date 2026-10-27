@@ -22,10 +22,9 @@ consistently in all manifests if needed. The requester must be authorized to cre
 ResourcePermits there. The reviewer needs read access and permission to update
 `resourcepermits/status`, as well as membership in `platform-on-call`.
 
-As the platform operator, install this executor ServiceAccount and its namespace-scoped
-ConfigMap permissions. Listing an approver in a template does not grant Kubernetes RBAC.
-
-{{< example "platform/resourcepermittemplates/temporary-config-rbac.yaml" >}}
+The combined manifest below includes the executor ServiceAccount and its namespace-scoped
+ConfigMap permissions. Apply it as the platform operator. Listing an approver in a
+template does not grant Kubernetes RBAC.
 
 When using Capsule, its [namespace assignment](https://projectcapsule.dev/docs/tenants/namespaces/)
 and [tenant permissions](https://projectcapsule.dev/docs/tenants/permissions/) guides
@@ -39,10 +38,9 @@ without an explicit namespace are placed in the permit namespace.
 
 {{< example "platform/resourcepermittemplates/temporary-config.yaml" >}}
 
-Apply the executor permissions and template first, then wait for template readiness:
+Apply the combined executor permissions and template, then wait for template readiness:
 
 ```sh
-kubectl apply -f playground/manifests/platform/resourcepermittemplates/temporary-config-rbac.yaml
 kubectl apply -f playground/manifests/platform/resourcepermittemplates/temporary-config.yaml
 kubectl wait --for=condition=Ready resourcepermittemplate/temporary-config -n solar-system --timeout=60s
 ```
