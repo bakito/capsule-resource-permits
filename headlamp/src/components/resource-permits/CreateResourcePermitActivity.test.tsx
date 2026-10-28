@@ -56,7 +56,10 @@ describe('ResourcePermit setup', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.template.status = { namespaces: ['*'] };
+    mocks.template = {
+      spec: { paramSchema: { type: 'object', properties: {} } },
+      status: { namespaces: ['*'] },
+    };
     mocks.namespaceList.mockReturnValue([visibleNamespaces(['solar-test']), null]);
     mocks.globalTemplateList.mockReturnValue([[], null]);
     mocks.namespacedTemplateList.mockReturnValue([[], null]);
@@ -262,4 +265,5 @@ describe('ResourcePermit setup', () => {
 
     expect(mocks.post.mock.calls[0][1].spec.startTime).toBe(new Date(startTime).toISOString());
   });
+
 });
