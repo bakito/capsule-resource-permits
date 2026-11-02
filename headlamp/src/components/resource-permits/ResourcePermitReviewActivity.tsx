@@ -31,6 +31,7 @@ import { ResourcePermitCLICommand } from './ResourcePermitCLICommand';
 import {
   flattenRenderedResourcePermitTargets,
   formatAccessEntity,
+  formatDuration,
   resourcePermitIsReviewable,
   resourcePermitPhase,
   resourcePermitServiceAccountEntity,
@@ -238,7 +239,8 @@ export function ResourcePermitReview({ cluster, name, namespace }: ResourcePermi
             </Typography>
           )}
           <Typography>
-            <strong>Effective duration:</strong> {statusRequest?.duration || 'Unlimited'}
+            <strong>Effective duration:</strong>{' '}
+            {formatDuration(statusRequest?.duration) || 'Unlimited'}
           </Typography>
           <ResourcePermitCLICommand action="review" name={name} namespace={namespace} />
           <ResourcePermitRetention request={request} />

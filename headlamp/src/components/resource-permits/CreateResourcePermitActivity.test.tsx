@@ -56,7 +56,10 @@ describe('ResourcePermit setup', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.template.status = { namespaces: ['*'] };
+    mocks.template = {
+      spec: { paramSchema: { type: 'object', properties: {} } },
+      status: { namespaces: ['*'] },
+    };
     mocks.namespaceList.mockReturnValue([visibleNamespaces(['solar-test']), null]);
     mocks.globalTemplateList.mockReturnValue([[], null]);
     mocks.namespacedTemplateList.mockReturnValue([[], null]);

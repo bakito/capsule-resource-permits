@@ -74,6 +74,31 @@ export function formatAccessEntity(entity?: ResourcePermitAccessEntity): string 
   return entity.type ? `${entity.type}/${entity.name}` : entity.name;
 }
 
+/**
+ * Formats a metav1.Duration value for display.
+ *
+ * In Kubernetes, metav1.Duration serializes to JSON as an object with a
+ * Duration field (nanoseconds), e.g. {"Duration": 60000000000}.
+ * This helper converts it to a human-readable string.
+ */
+export function formatDuration(value: unknown): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && 'Duration' in value) {
+    const ns = Number((value as any).Duration);
+    if (!ns) return '';
+    const seconds = Math.floor(ns / 1e9);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if (days > 0) return `${days}d`;
+    if (hours > 0) return `${hours}h`;
+    if (minutes > 0) return `${minutes}m`;
+    return `${seconds}s`;
+  }
+  return String(value);
+}
+
 /** The controller-resolved request snapshot is authoritative for review and execution details. */
 export function resourcePermitStatusRequest(item: any): ResourcePermitStatusRequest | undefined {
   return objectData(item).status?.request;
@@ -347,4 +372,17 @@ export function resourcePermitTemplateDescription(item: any): string | undefined
 /** Safe Iconify, Font Awesome, or image reference from the conventional info annotation. */
 export function resourcePermitTemplateIcon(item: any): string | undefined {
   return normalizeIconRef(templateAnnotations(item)['info.projectcapsule.dev/icon']);
+}
+
+/** Returns the approval conditions array from a template, or an empty array. */
+export function templateApprovalConditions(item: any): string[] {
+  const conditions = objectData(item).spec?.approvals?.conditions;
+  return Array.isArray(conditions) ? conditions : [];
+}
+
+/** Checks whether any approval condition references the request reason. */
+export function hasReasonApprovalCondition(item: any): boolean {
+  return templateApprovalConditions(item).some(condition =>
+    condition.includes('request.spec.reason')
+  );
 }

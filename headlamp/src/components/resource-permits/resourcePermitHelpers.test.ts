@@ -3,6 +3,7 @@ import {
   combineResourcePermitTemplates,
   flattenRenderedResourcePermitTargets,
   formatAccessEntity,
+  hasReasonApprovalCondition,
   resourcePermitAuditTrail,
   resourcePermitIsReviewable,
   resourcePermitNamespacesFromSearch,
@@ -22,6 +23,7 @@ import {
   resourcePermitTemplateDescription,
   resourcePermitTemplateIcon,
   resourcePermitTemplateReference,
+  templateApprovalConditions,
   templateApprovalMode,
   templateNamespaces,
   templateTargetCount,
@@ -405,5 +407,41 @@ describe('GlobalResourcePermitTemplate helpers', () => {
         metadata: { annotations: { 'info.projectcapsule.dev/icon': 'javascript:alert(1)' } },
       })
     ).toBeUndefined();
+  });
+
+  it('exposes approval conditions and detects reason references', () => {
+    const templateWithReason = {
+      spec: {
+        approvals: {
+          auto: true,
+          conditions: ["request.spec.reason == 'open sesame'", 'requestor.name == "alice"'],
+        },
+      },
+    };
+
+    expect(templateApprovalConditions(templateWithReason)).toEqual([
+      "request.spec.reason == 'open sesame'",
+      'requestor.name == "alice"',
+    ]);
+    expect(hasReasonApprovalCondition(templateWithReason)).toBe(true);
+
+    const templateWithoutReason = {
+      spec: {
+        approvals: {
+          auto: true,
+          conditions: ['requestor.name == "alice"'],
+        },
+      },
+    };
+
+    expect(hasReasonApprovalCondition(templateWithoutReason)).toBe(false);
+
+    const templateNoConditions = {
+      spec: { approvals: { auto: true } },
+    };
+
+    expect(templateApprovalConditions(templateNoConditions)).toEqual([]);
+    expect(hasReasonApprovalCondition(templateNoConditions)).toBe(false);
+    expect(hasReasonApprovalCondition({})).toBe(false);
   });
 });

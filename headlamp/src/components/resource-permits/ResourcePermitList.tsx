@@ -17,6 +17,7 @@ import { canExpireResourcePermit } from './resourcePermitExpire';
 import { ResourcePermitExpireButton } from './ResourcePermitExpireAction';
 import {
   formatAccessEntity,
+  formatDuration,
   resourcePermitIsReviewable,
   resourcePermitNamespacesFromSearch,
   resourcePermitPhase,
@@ -248,8 +249,8 @@ export function ResourcePermitsList() {
             getValue: item => {
               const statusRequest = resourcePermitStatusRequest(item);
               return statusRequest
-                ? statusRequest.duration || 'Unlimited'
-                : item.spec?.duration || '';
+                ? formatDuration(statusRequest.duration) || 'Unlimited'
+                : formatDuration(item.spec?.duration) || '';
             },
           },
           {
