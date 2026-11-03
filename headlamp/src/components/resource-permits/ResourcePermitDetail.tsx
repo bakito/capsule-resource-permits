@@ -16,7 +16,6 @@ import { capsuleSubjectFromAccessEntity } from '../subjects/subjectReferences';
 import { ResourcePermitAuditTimeline } from './ResourcePermitAuditTimeline';
 import {
   formatAccessEntity,
-  formatDuration,
   resourcePermitAuditTrail,
   resourcePermitPhase,
   resourcePermitReviewEntity,
@@ -191,14 +190,11 @@ export function ResourcePermitDetail(props: ResourcePermitDetailProps) {
           },
         ]
       : []),
-    {
-      field: 'Requested duration',
-      value: formatDuration(request?.spec?.duration) || 'Template default',
-    },
+    { field: 'Requested duration', value: request?.spec?.duration || 'Template default' },
     { field: 'Requested start', value: dateTime(request?.spec?.startTime) },
     {
       field: 'Effective duration',
-      value: statusRequest ? formatDuration(statusRequest.duration) || 'Unlimited' : '—',
+      value: statusRequest ? statusRequest.duration || 'Unlimited' : '—',
     },
     { field: 'Effective start', value: dateTime(statusRequest?.startTime) },
     {
@@ -272,8 +268,8 @@ export function ResourcePermitDetail(props: ResourcePermitDetailProps) {
             value: (
               <Typography>
                 {itemStatusRequest
-                  ? formatDuration(itemStatusRequest.duration) || 'Unlimited'
-                  : formatDuration(item.spec?.duration) || '—'}
+                  ? itemStatusRequest.duration || 'Unlimited'
+                  : item.spec?.duration || '—'}
               </Typography>
             ),
           },

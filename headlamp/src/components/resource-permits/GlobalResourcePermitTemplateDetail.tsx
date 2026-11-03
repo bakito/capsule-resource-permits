@@ -15,7 +15,6 @@ import { CapsuleSubjectLink } from '../subjects/CapsuleSubjectLink';
 import { ImpersonationSubjectCell } from '../subjects/ImpersonationSubjectCell';
 import { manifestSubjects } from '../subjects/subjectReferences';
 import {
-  formatDuration,
   templateApprovalMode,
   templateNamespaces,
   templateTargetCount,
@@ -222,12 +221,9 @@ function ResourcePermitTemplateDetailView({
             data={[
               {
                 name: 'Default duration',
-                value: formatDuration(template?.spec?.defaultDuration) || 'Until deletion',
+                value: template?.spec?.defaultDuration || 'Until deletion',
               },
-              {
-                name: 'Maximum duration',
-                value: formatDuration(template?.spec?.maxDuration) || 'Not limited',
-              },
+              { name: 'Maximum duration', value: template?.spec?.maxDuration || 'Not limited' },
               {
                 name: 'Keep expired requests for',
                 value: template?.spec?.keepFor || 'No retention',

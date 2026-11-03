@@ -74,31 +74,6 @@ export function formatAccessEntity(entity?: ResourcePermitAccessEntity): string 
   return entity.type ? `${entity.type}/${entity.name}` : entity.name;
 }
 
-/**
- * Formats a metav1.Duration value for display.
- *
- * In Kubernetes, metav1.Duration serializes to JSON as an object with a
- * Duration field (nanoseconds), e.g. {"Duration": 60000000000}.
- * This helper converts it to a human-readable string.
- */
-export function formatDuration(value: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object' && 'Duration' in value) {
-    const ns = Number((value as any).Duration);
-    if (!ns) return '';
-    const seconds = Math.floor(ns / 1e9);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-    if (days > 0) return `${days}d`;
-    if (hours > 0) return `${hours}h`;
-    if (minutes > 0) return `${minutes}m`;
-    return `${seconds}s`;
-  }
-  return String(value);
-}
-
 /** The controller-resolved request snapshot is authoritative for review and execution details. */
 export function resourcePermitStatusRequest(item: any): ResourcePermitStatusRequest | undefined {
   return objectData(item).status?.request;
