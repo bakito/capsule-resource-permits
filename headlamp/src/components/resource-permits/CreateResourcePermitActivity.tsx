@@ -48,7 +48,7 @@ import {
   filterResourcePermitTemplates,
   groupResourcePermitTemplates,
 } from './resourcePermitCreate';
-import { templateApprovalMode } from './resourcePermitHelpers';
+import { templateApprovalConditions, templateApprovalMode } from './resourcePermitHelpers';
 import {
   buildResourcePermitUiSchema,
   resourcePermitDefaultParamData,
@@ -186,6 +186,16 @@ export function ResourcePermitSetupForm({
     );
   }, [namespaceOptions]);
 
+  const reasonConditions = useMemo(() => {
+    if (!template) return [];
+    try {
+      return templateApprovalConditions(template).filter(c => c.includes('request.spec.reason'));
+    } catch {
+      return [];
+    }
+  }, [template]);
+  const reasonIsRequired = reasonConditions.length > 0;
+
   if (templateError) {
     return (
       <Alert severity="error">
@@ -209,6 +219,9 @@ export function ResourcePermitSetupForm({
     }
     if (!namespaceOptions.includes(namespace) || namespaceError) {
       nextErrors.namespace = 'Choose a visible Namespace';
+    }
+    if (reasonIsRequired && !reason.trim()) {
+      nextErrors.reason = 'Required — this template validates the reason before approval.';
     }
     if (startTime && Number.isNaN(new Date(startTime).getTime())) {
       nextErrors.startTime = 'Enter a valid start time';
@@ -451,11 +464,19 @@ export function ResourcePermitSetupForm({
                 <TextField
                   error={Boolean(errors.reason)}
                   fullWidth
-                  helperText="Optional. Recorded in the ResourcePermit audit trail."
+                  helperText={
+                    errors.reason ||
+                    (reasonIsRequired
+                      ? reasonConditions.length > 0
+                        ? `Required — must satisfy: ${reasonConditions.join('; ')}`
+                        : 'Required — this template validates the reason before approval.'
+                      : 'Optional. Recorded in the ResourcePermit audit trail.')
+                  }
                   label="Reason"
                   minRows={4}
                   multiline
                   onChange={event => setReason(event.target.value)}
+                  required={reasonIsRequired}
                   value={reason}
                 />
                 <TextField

@@ -173,6 +173,12 @@ tasks:
       - npm test
       - npm run build
 
+  headlamp:format:
+    desc: Format Headlamp plugin source files using Prettier.
+    dir: headlamp
+    cmds:
+      - npm run format
+
   headlamp:build:
     desc: Build the plugin into headlamp/dist.
     dir: headlamp
