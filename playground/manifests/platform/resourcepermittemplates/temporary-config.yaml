@@ -1,3 +1,33 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: permit-config-writer
+  namespace: solar-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: permit-config-writer
+  namespace: solar-system
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: permit-config-writer
+  namespace: solar-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: permit-config-writer
+subjects:
+  - kind: ServiceAccount
+    name: permit-config-writer
+    namespace: solar-system
+---
 apiVersion: addons.projectcapsule.dev/v1beta2
 kind: ResourcePermitTemplate
 metadata:

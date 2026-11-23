@@ -45,10 +45,11 @@ import { capsuleResourceTags } from '../tags/capsuleTags';
 import { KubernetesResourceSchemaWidget } from './KubernetesResourceSchemaFieldInput';
 import {
   buildCreateResourcePermit,
+  defaultGenerateNamePrefix,
   filterResourcePermitTemplates,
   groupResourcePermitTemplates,
 } from './resourcePermitCreate';
-import { templateApprovalMode } from './resourcePermitHelpers';
+import { templateApprovalConditions, templateApprovalMode } from './resourcePermitHelpers';
 import {
   buildResourcePermitUiSchema,
   resourcePermitDefaultParamData,
@@ -121,6 +122,7 @@ export function ResourcePermitSetupForm({
   templateName: string;
   templateNamespace?: string;
 }) {
+  const defaultPrefix = defaultGenerateNamePrefix(templateName);
   const startTimeInputId = useId();
   const resourceType: any =
     templateKind === 'ResourcePermitTemplate'
@@ -132,7 +134,7 @@ export function ResourcePermitSetupForm({
     { cluster }
   );
   const [visibleNamespaces, namespaceError] = K8s.ResourceClasses.Namespace.useList({ cluster });
-  const [name, setName] = useState('');
+  const [name, setName] = useState(defaultPrefix);
   const [generateName, setGenerateName] = useState(true);
   const [namespace, setNamespace] = useState('');
   const [reason, setReason] = useState('');
@@ -164,7 +166,7 @@ export function ResourcePermitSetupForm({
 
   useEffect(() => {
     setValues(initialValues);
-    setName('');
+    setName(defaultPrefix);
     setGenerateName(true);
     setReason('');
     setDuration('');
@@ -174,7 +176,7 @@ export function ResourcePermitSetupForm({
     setCreated(null);
     setYamlResource(null);
     setActiveStep(0);
-  }, [initialValues]);
+  }, [defaultPrefix, initialValues]);
 
   useEffect(() => {
     setNamespace(current =>
@@ -185,6 +187,19 @@ export function ResourcePermitSetupForm({
         : ''
     );
   }, [namespaceOptions]);
+
+  const reasonConditions = useMemo(() => {
+    if (!template) return [];
+    try {
+      return templateApprovalConditions(template).filter(c => c.includes('request.spec.reason'));
+    } catch {
+      return [];
+    }
+  }, [template]);
+  const reasonIsRequired = reasonConditions.length > 0;
+  const effectiveName = generateName
+    ? (name.trim() || defaultPrefix).replace(/-+$/, '')
+    : name.trim();
 
   if (templateError) {
     return (
@@ -197,18 +212,21 @@ export function ResourcePermitSetupForm({
 
   const formalErrors = () => {
     const nextErrors: Record<string, string> = {};
-    if (!name.trim()) nextErrors.name = 'Required';
-    else if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(name.trim())) {
+    if (!effectiveName) nextErrors.name = 'Required';
+    else if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(effectiveName)) {
       nextErrors.name = generateName
         ? 'Use a DNS-compatible lowercase prefix'
         : 'Use a DNS-compatible lowercase name';
-    } else if (name.trim().length > (generateName ? 240 : 253)) {
+    } else if (effectiveName.length > (generateName ? 240 : 253)) {
       nextErrors.name = generateName
         ? 'Keep the prefix at or below 240 characters'
         : 'Maximum length is 253 characters';
     }
     if (!namespaceOptions.includes(namespace) || namespaceError) {
       nextErrors.namespace = 'Choose a visible Namespace';
+    }
+    if (reasonIsRequired && !reason.trim()) {
+      nextErrors.reason = 'Required — this template validates the reason before approval.';
     }
     if (startTime && Number.isNaN(new Date(startTime).getTime())) {
       nextErrors.startTime = 'Enter a valid start time';
@@ -228,8 +246,8 @@ export function ResourcePermitSetupForm({
     const normalizedStartTime = startTime ? new Date(startTime).toISOString() : undefined;
     return buildCreateResourcePermit({
       duration,
-      generateName: generateName ? name : undefined,
-      name: generateName ? undefined : name,
+      generateName: generateName ? effectiveName : undefined,
+      name: generateName ? undefined : effectiveName,
       namespace,
       params,
       reason,
@@ -425,7 +443,12 @@ export function ResourcePermitSetupForm({
                       control={
                         <Checkbox
                           checked={generateName}
-                          onChange={event => setGenerateName(event.target.checked)}
+                          onChange={event => {
+                            const enabled = event.target.checked;
+                            setGenerateName(enabled);
+                            if (enabled && !name) setName(defaultPrefix);
+                            else if (!enabled && name === defaultPrefix) setName('');
+                          }}
                         />
                       }
                       label="Generate a unique request name"
@@ -437,13 +460,13 @@ export function ResourcePermitSetupForm({
                         errors.name ||
                         (generateName
                           ? `Kubernetes will append a unique suffix to ${
-                              name.trim() || 'this prefix'
+                              effectiveName || 'this prefix'
                             }-.`
                           : 'Use a stable DNS-compatible name, or enable generated naming above.')
                       }
                       label={generateName ? 'ResourcePermit name prefix' : 'ResourcePermit name'}
                       onChange={event => setName(event.target.value)}
-                      required
+                      required={!generateName}
                       value={name}
                     />
                   </Stack>
@@ -451,11 +474,19 @@ export function ResourcePermitSetupForm({
                 <TextField
                   error={Boolean(errors.reason)}
                   fullWidth
-                  helperText="Optional. Recorded in the ResourcePermit audit trail."
+                  helperText={
+                    errors.reason ||
+                    (reasonIsRequired
+                      ? reasonConditions.length > 0
+                        ? `Required — must satisfy: ${reasonConditions.join('; ')}`
+                        : 'Required — this template validates the reason before approval.'
+                      : 'Optional. Recorded in the ResourcePermit audit trail.')
+                  }
                   label="Reason"
                   minRows={4}
                   multiline
                   onChange={event => setReason(event.target.value)}
+                  required={reasonIsRequired}
                   value={reason}
                 />
                 <TextField

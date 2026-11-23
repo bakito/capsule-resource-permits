@@ -348,3 +348,16 @@ export function resourcePermitTemplateDescription(item: any): string | undefined
 export function resourcePermitTemplateIcon(item: any): string | undefined {
   return normalizeIconRef(templateAnnotations(item)['info.projectcapsule.dev/icon']);
 }
+
+/** Returns the approval conditions array from a template, or an empty array. */
+export function templateApprovalConditions(item: any): string[] {
+  const conditions = objectData(item).spec?.approvals?.conditions;
+  return Array.isArray(conditions) ? conditions : [];
+}
+
+/** Checks whether any approval condition references the request reason. */
+export function hasReasonApprovalCondition(item: any): boolean {
+  return templateApprovalConditions(item).some(condition =>
+    condition.includes('request.spec.reason')
+  );
+}

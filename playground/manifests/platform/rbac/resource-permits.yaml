@@ -1,0 +1,10 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: resource-permits-admin
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+  - apiGroups: [addons.projectcapsule.dev]
+    resources: [resourcepermits, resourcepermittemplates]
+    verbs: [get, list, watch, create, update, patch, delete]
