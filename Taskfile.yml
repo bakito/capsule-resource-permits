@@ -149,12 +149,6 @@ tasks:
       - task: docs:install
       - npm --prefix docs run test:browser
 
-  docs:browser:install:
-    desc: Install Chromium and its Linux runtime dependencies for documentation tests.
-    cmds:
-      - task: docs:install
-      - npm --prefix docs exec -- playwright install --with-deps chromium
-
   headlamp:install:
     desc: Install the plugin's locked npm dependencies.
     dir: headlamp
@@ -515,6 +509,7 @@ tasks:
         fi
         export KUBECONFIG
         KUBECONFIG=$(mktemp)
+        echo "KUBECONFIG=$KUBECONFIG"
         cluster_started=false
         cleanup() {
           result=$?
@@ -573,6 +568,13 @@ tasks:
         cat "$ARTIFACTS/config.log"
         (( parallel_status == 0 && config_status == 0 ))
         BASH
+
+  e2e:delete:
+    desc: Delete the e2e Kind cluster left behind by an interrupted e2e run.
+    env:
+      KIND_CLUSTER: '{{.KIND_CLUSTER}}'
+    cmds:
+      - kind delete cluster --name "$KIND_CLUSTER"
 
   helm:lint:
     desc: Validate Helm packaging.
